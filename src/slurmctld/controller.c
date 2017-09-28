@@ -121,6 +121,14 @@
 #include "src/slurmctld/state_save.h"
 #include "src/slurmctld/trigger_mgr.h"
 
+#ifdef SLURM_SIMULATOR
+#include <fcntl.h>           /* For O_* constants */
+#include <sys/stat.h>        /* For mode constants */
+#include <semaphore.h>
+#include <pthread.h>
+#include "src/common/slurm_sim.h"
+#endif
+
 
 #define DEFAULT_DAEMONIZE 1	/* Run as daemon by default if set */
 #define DEFAULT_RECOVER   1	/* Default state recovery on restart
@@ -210,6 +218,11 @@ static int	recover   = DEFAULT_RECOVER;
 static pthread_mutex_t sched_cnt_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pid_t	slurmctld_pid;
 static char *	slurm_conf_filename;
+
+#ifdef SLURM_SIMULATOR
+char SEM_NAME[]		= "serversem";
+sem_t* mutexserver	= SEM_FAILED;
+#endif
 
 /*
  * Static list of signals to block in this process
@@ -715,8 +728,10 @@ int main(int argc, char **argv)
 
 		if (slurm_priority_init() != SLURM_SUCCESS)
 			fatal("failed to initialize priority plugin");
+#ifndef SLURM_SIMULATOR
 		if (slurm_sched_init() != SLURM_SUCCESS)
 			fatal("failed to initialize scheduling plugin");
+#endif
 		if (slurmctld_plugstack_init())
 			fatal("failed to initialize slurmctld_plugstack");
 		if (bb_g_init() != SLURM_SUCCESS)
@@ -739,11 +754,13 @@ int main(int argc, char **argv)
 		slurm_thread_create(&slurmctld_config.thread_id_sig,
 				    _slurmctld_signal_hand, NULL);
 
+#ifndef SLURM_SIMULATOR
 		/*
 		 * create attached thread for state save
 		 */
 		slurm_thread_create(&slurmctld_config.thread_id_save,
 				    slurmctld_state_save, NULL);
+#endif
 
 		/*
 		 * create attached thread for node power management
@@ -1036,7 +1053,7 @@ extern void queue_job_scheduler(void)
 }
 
 /* _slurmctld_signal_hand - Process daemon-wide signals */
-static void *_slurmctld_signal_hand(void *no_data)
+void *_slurmctld_signal_hand(void *no_data)
 {
 	int sig;
 	int i, rc;
@@ -1239,13 +1256,48 @@ static void *_slurmctld_rpc_mgr(void *no_data)
 	return NULL;
 }
 
+/* st on 20151020 */
+#ifdef SLURM_SIMULATOR
+int
+open_global_sync_sem() {
+	int iter = 0;
+	while (mutexserver == SEM_FAILED && iter < 10) {
+		mutexserver = sem_open(SEM_NAME, 0, 0644, 0);
+		if(mutexserver == SEM_FAILED) sleep(1);
+		++iter;
+	}
+
+	if(mutexserver == SEM_FAILED)
+		return -1;
+	else
+		return 0;
+}
+
+void
+perform_global_sync() {
+	while(*global_sync_flag < 2 || *global_sync_flag > 4) {
+		usleep(100000); /* one-tenth second */
+	}
+
+	sem_wait(mutexserver);
+	*global_sync_flag += 1;
+	if ( *global_sync_flag > 4) *global_sync_flag = 1;
+	sem_post(mutexserver);
+}
+void
+close_global_sync_sem() {
+	if(mutexserver != SEM_FAILED) sem_close(mutexserver);
+}
+#endif
+/* st on 20151020 */
+
 /*
  * _service_connection - service the RPC
  * IN/OUT arg - really just the connection's file descriptor, freed
  *	upon completion
  * RET - NULL
  */
-static void *_service_connection(void *arg)
+void *_service_connection(void *arg)
 {
 	connection_arg_t *conn = (connection_arg_t *) arg;
 	void *return_code = NULL;
@@ -1258,6 +1310,7 @@ static void *_service_connection(void *arg)
 #endif
 	slurm_msg_t_init(&msg);
 	msg.flags |= SLURM_MSG_KEEP_BUFFER;
+	open_global_sync_sem();
 	/*
 	 * slurm_receive_msg sets msg connection fd to accepted fd. This allows
 	 * possibility for slurmctld_req() to close accepted connection.
@@ -1290,6 +1343,7 @@ cleanup:
 	xfree(arg);
 	server_thread_decr();
 
+	perform_global_sync(); /* st on 20151020 */
 	return return_code;
 }
 
@@ -2080,6 +2134,7 @@ static void *_slurmctld_background(void *no_data)
 			unlock_slurmctld(node_write_lock);
 		}
 
+#ifndef SLURM_SIMULATOR
 		if (slurmctld_conf.acct_gather_node_freq &&
 		    (difftime(now, last_acct_gather_node_time) >=
 		     slurmctld_conf.acct_gather_node_freq) &&
@@ -2130,6 +2185,7 @@ static void *_slurmctld_background(void *no_data)
 			_queue_reboot_msg();
 			unlock_slurmctld(node_write_lock);
 		}
+#endif
 
 		/* Process any pending agent work */
 		agent_trigger(RPC_RETRY_INTERVAL, true);
@@ -2183,6 +2239,7 @@ static void *_slurmctld_background(void *no_data)
 			}
 			slurm_mutex_unlock(&sched_cnt_mutex);
 		}
+#ifndef SLURM_SIMULATOR
 		if (job_limit != NO_VAL) {
 			lock_slurmctld(job_write_lock2);
 			now = time(NULL);
@@ -2193,6 +2250,7 @@ static void *_slurmctld_background(void *no_data)
 				last_checkpoint_time = 0; /* force state save */
 			set_job_elig_time();
 		}
+#endif
 
 		if (slurmctld_conf.slurmctld_timeout &&
 		    (difftime(now, last_ctld_bu_ping) >
@@ -2209,6 +2267,7 @@ static void *_slurmctld_background(void *no_data)
 			unlock_slurmctld(job_node_read_lock);
 		}
 
+#ifndef SLURM_SIMULATOR
 		if (difftime(now, last_checkpoint_time) >=
 		    PERIODIC_CHECKPOINT) {
 			now = time(NULL);
@@ -2216,6 +2275,7 @@ static void *_slurmctld_background(void *no_data)
 			debug2("Performing full system state save");
 			save_all_state();
 		}
+#endif
 
 		if (difftime(now, last_node_acct) >= PERIODIC_NODE_ACCT) {
 			/* Report current node state to account for added
@@ -2371,6 +2431,7 @@ extern void ctld_assoc_mgr_init(slurm_trigger_callbacks_t *callbacks)
 
 	_init_tres();
 
+#ifndef SLURM_SIMULATOR
 	/* This thread is looking for when we get correct data from
 	   the database so we can update the assoc_ptr's in the jobs
 	*/
@@ -2378,6 +2439,7 @@ extern void ctld_assoc_mgr_init(slurm_trigger_callbacks_t *callbacks)
 		slurm_thread_create(&assoc_cache_thread,
 				    _assoc_cache_mgr, NULL);
 	}
+#endif
 
 }
 
@@ -3030,7 +3092,7 @@ extern void set_slurmctld_state_loc(void)
 
 /* _assoc_cache_mgr - hold out until we have real data from the
  * database so we can reset the job ptr's assoc ptr's */
-static void *_assoc_cache_mgr(void *no_data)
+void *_assoc_cache_mgr(void *no_data)
 {
 	ListIterator itr = NULL;
 	struct job_record *job_ptr = NULL;
@@ -3221,6 +3283,7 @@ static void _become_slurm_user(void)
 		info("Not running as root. Can't drop supplementary groups");
 	}
 
+#ifndef SLURM_SIMULATOR
 	/* Set GID to GID of SlurmUser */
 	if ((slurm_user_gid != getegid()) &&
 	    (setgid(slurm_user_gid))) {
@@ -3233,6 +3296,7 @@ static void _become_slurm_user(void)
 		fatal("Can not set uid to SlurmUser(%u): %m",
 		      slurmctld_conf.slurm_user_id);
 	}
+#endif
 }
 
 /*

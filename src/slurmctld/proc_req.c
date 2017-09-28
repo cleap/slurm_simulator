@@ -115,6 +115,12 @@ static uint32_t *rpc_user_id = NULL;
 static uint32_t *rpc_user_cnt = NULL;
 static uint64_t *rpc_user_time = NULL;
 
+
+#ifdef SLURM_SIMULATOR
+#include <semaphore.h>
+int finished_jobs_waiting_for_epilog=0;
+#endif
+
 static pthread_mutex_t throttle_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t throttle_cond = PTHREAD_COND_INITIALIZER;
 
@@ -207,6 +213,7 @@ inline static void _slurm_rpc_sib_msg(uint32_t uid, slurm_msg_t *msg);
 
 inline static void  _slurm_rpc_step_complete(slurm_msg_t * msg,
 					     bool running_composite);
+inline static void  _slurm_rpc_sim_helper_cycle(slurm_msg_t * msg);
 inline static void  _slurm_rpc_step_layout(slurm_msg_t * msg);
 inline static void  _slurm_rpc_step_update(slurm_msg_t * msg);
 inline static void  _slurm_rpc_submit_batch_job(slurm_msg_t * msg);
@@ -411,6 +418,10 @@ void slurmctld_req(slurm_msg_t *msg, connection_arg_t *arg)
 	case MESSAGE_NODE_REGISTRATION_STATUS:
 		_slurm_rpc_node_registration(msg, 0);
 		break;
+       	case MESSAGE_SIM_HELPER_CYCLE:
+               _slurm_rpc_sim_helper_cycle(msg);
+               slurm_free_sim_helper_msg(msg->data);
+               break;
 	case REQUEST_JOB_ALLOCATION_INFO:
 		_slurm_rpc_job_alloc_info(msg);
 		break;
@@ -2278,6 +2289,11 @@ static void  _slurm_rpc_epilog_complete(slurm_msg_t *msg,
 	struct job_record  *job_ptr;
 
 	START_TIMER;
+
+#ifdef SLURM_SIMULATOR
+       info("SIM: Processing RPC: MESSAGE_EPILOG_COMPLETE for jobid %d", epilog_msg->job_id);
+       slurm_send_rc_msg(msg, SLURM_SUCCESS);
+#endif
 	debug2("Processing RPC: MESSAGE_EPILOG_COMPLETE uid=%d", uid);
 	if (!validate_slurm_user(uid)) {
 		error("Security violation, EPILOG_COMPLETE RPC from uid=%d",
@@ -2325,6 +2341,7 @@ static void  _slurm_rpc_epilog_complete(slurm_msg_t *msg,
 
 	END_TIMER2("_slurm_rpc_epilog_complete");
 
+#ifndef SLURM_SIMULATOR
 	/* Functions below provide their own locking */
 	if (!running_composite && *run_scheduler) {
 		/*
@@ -2340,7 +2357,7 @@ static void  _slurm_rpc_epilog_complete(slurm_msg_t *msg,
 		schedule_node_save();		/* Has own locking */
 		schedule_job_save();		/* Has own locking */
 	}
-
+#endif
 	/* NOTE: RPC has no response */
 }
 
@@ -2629,6 +2646,7 @@ static void _slurm_rpc_complete_batch_script(slurm_msg_t *msg,
 	/* Mark job allocation complete */
 	if (msg->msg_type == REQUEST_COMPLETE_BATCH_JOB)
 		job_epilog_complete(comp_msg->job_id, comp_msg->node_name, 0);
+	finished_jobs_waiting_for_epilog+=1;
 	i = job_complete(comp_msg->job_id, uid, job_requeue, false,
 			 comp_msg->job_rc);
 	error_code = MAX(error_code, i);
@@ -6983,4 +7001,80 @@ inline static void  _slurm_rpc_set_fs_dampening_factor(slurm_msg_t *msg)
 
 	info("Set FairShareDampeningFactor to %u", factor);
 	slurm_send_rc_msg(msg, SLURM_SUCCESS);
+}
+
+
+
+char BF_SEM_NAME[] = "bf_sem";
+char BF_DONE_SEM_NAME[] = "bf_done_sem";
+sem_t* mutex_bf=NULL;
+sem_t* mutex_bf_done=NULL;
+
+int open_BF_sync_semaphore() {
+	mutex_bf = sem_open(BF_SEM_NAME, O_CREAT, 0644, 0);
+	if(mutex_bf == SEM_FAILED) {
+		error("unable to create backfill semaphore");
+		sem_unlink(BF_SEM_NAME);
+		return -1;
+	}
+
+	mutex_bf_done = sem_open(BF_DONE_SEM_NAME, O_CREAT, 0644, 0);
+	if(mutex_bf_done == SEM_FAILED) {
+		error("unable to create backfill done semaphore");
+		sem_unlink(BF_DONE_SEM_NAME);
+		return -1;
+	}
+
+	return 0;
+}
+
+void close_BF_sync_semaphore() {
+	if(mutex_bf != SEM_FAILED) sem_close(mutex_bf);
+	if(mutex_bf_done != SEM_FAILED) sem_close(mutex_bf_done);
+}
+
+static time_t last_helper_schedule_time=0;
+static time_t last_helper_backfill_time=0;
+#define HELPER_SCHEDULE_PERIOD_S 11
+#define HELPER_BACKFILL_PERIOD_S 23
+
+
+
+static void do_backfill() {
+	int value;
+	sem_post(mutex_bf);
+	sem_wait(mutex_bf_done);
+}
+
+static void _slurm_rpc_sim_helper_cycle(slurm_msg_t * msg)
+{
+		if (mutex_bf==NULL) {
+			if(open_BF_sync_semaphore()==-1) {
+				error("Opening backfill semaphore! this may affect backfill"
+					"operations");
+			}
+		}
+		if (finished_jobs_waiting_for_epilog > 0) {
+			usleep(finished_jobs_waiting_for_epilog*500000);
+			finished_jobs_waiting_for_epilog=0;
+		}
+
+        sim_helper_msg_t *helper_msg =
+                (sim_helper_msg_t *) msg->data;
+
+        info("Processing RPC: MESSAGE_SIM_HELPER_CYCLE for %d jobs",
+        		helper_msg->total_jobs_ended);
+        time_t current_time=time(NULL);
+        if (last_helper_schedule_time==0 ||
+           (current_time-last_helper_schedule_time)>HELPER_SCHEDULE_PERIOD_S) {
+        	schedule(0);
+        	last_helper_schedule_time=current_time;
+        }
+        if (last_helper_backfill_time==0 ||
+        	(current_time-last_helper_backfill_time)>HELPER_BACKFILL_PERIOD_S) {
+        	do_backfill();
+        	last_helper_backfill_time=current_time;
+        }
+
+        slurm_send_rc_msg(msg, SLURM_SUCCESS);
 }

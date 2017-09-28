@@ -65,6 +65,16 @@
 #include <sys/types.h>
 #include <sys/utsname.h>
 #include <unistd.h>
+#include <signal.h>
+
+ #include <sys/syscall.h> /* SYS_gettid */
+
+#ifdef SLURM_SIMULATOR
+/* The following three lines are for some global synchronization logic
+ * needed by the simulator.  The definitions should match what are in slurm_sim.h.
+ */
+#include <semaphore.h>
+#endif
 
 #include "src/common/assoc_mgr.h"
 #include "src/common/bitstring.h"
@@ -118,6 +128,12 @@
 #include "src/slurmd/slurmd/get_mach_stat.h"
 #include "src/slurmd/slurmd/req.h"
 #include "src/slurmd/slurmd/slurmd.h"
+#include "src/slurmd/slurmd/slurmd_plugstack.h"
+
+#ifdef SLURM_SIMULATOR
+#include "sim_events.h"
+#include "src/common/slurm_sim.h"
+#endif
 
 #ifndef MAXHOSTNAMELEN
 #  define MAXHOSTNAMELEN	64
@@ -165,6 +181,16 @@ static char	*res_mac_cpus = NULL;	/* reserved machine CPUs list */
 static int	ncores;			/* number of cores on this node */
 static int	ncpus;			/* number of CPUs on this node */
 
+#ifdef SLURM_SIMULATOR
+volatile simulator_event_t *head_simulator_event;
+volatile simulator_event_t *head_sim_completed_jobs;
+int    total_sim_events = 0;
+char   SEM_NAME[]       = "serversem";
+sem_t* mutexserver      = SEM_FAILED;
+#endif
+
+pthread_mutex_t simulator_mutex  = PTHREAD_MUTEX_INITIALIZER;
+
 /*
  * static shutdown and reconfigure flags:
  */
@@ -194,6 +220,10 @@ static void      _kill_old_slurmd(void);
 static int       _memory_spec_init(void);
 static void      _msg_engine(void);
 static uint64_t  _parse_msg_aggr_params(int type, char *params);
+#ifdef SLURM_SIMULATOR
+static void     *_simulator_helper(void *arg);
+static void      _spawn_simulator_helper(void);
+#endif
 static void      _print_conf(void);
 static void      _print_config(void);
 static void      _process_cmdline(int ac, char **av);
@@ -259,6 +289,7 @@ main (int argc, char **argv)
 	uint32_t curr_uid = 0;
 	char time_stamp[256];
 	log_options_t lopts = LOG_OPTS_INITIALIZER;
+	slurm_msg_t	req_msg;
 
 	/* NOTE: logfile is NULL at this point */
 	log_init(argv[0], lopts, LOG_DAEMON, NULL);
@@ -395,6 +426,9 @@ main (int argc, char **argv)
 
 	slurm_thread_create_detached(NULL, _registration_engine, NULL);
 
+#ifdef SLURM_SIMULATOR
+       _spawn_simulator_helper();
+#endif
 	_msg_engine();
 
 	/*
@@ -418,7 +452,36 @@ main (int argc, char **argv)
        	return 0;
 }
 
-/*
+#ifdef SLURM_SIMULATOR
+static void
+_spawn_simulator_helper(void)
+{
+       int            rc;
+       pthread_attr_t attr;
+       pthread_t      id;
+       int            retries = 0;
+
+       slurm_attr_init(&attr);
+       rc = pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+       if (rc != 0) {
+               errno = rc;
+               fatal("Unable to set detachstate on attr: %m");
+               slurm_attr_destroy(&attr);
+               return;
+       }
+
+       while (pthread_create(&id, &attr, &_simulator_helper, NULL)) {
+               error("simulator_helper: pthread_create: %m");
+               if (++retries > 3)
+                       fatal("simulator_helper: pthread_create: %m");
+               usleep(10);     /* sleep and again */
+       }
+
+       return;
+}
+#endif
+
+/* 
  * Spawn a thread to make sure we send at least one registration message to
  * slurmctld. If slurmctld restarts, it will request another registration
  * message.
@@ -428,6 +491,7 @@ _registration_engine(void *arg)
 {
 	_increment_thd_count();
 
+	debug("STARTING _registration_engine call..");
 	while (!_shutdown) {
 		if ((sent_reg_time == (time_t) 0) &&
 		    (send_registration_msg(SLURM_SUCCESS, true) !=
@@ -440,8 +504,214 @@ _registration_engine(void *arg)
 	}
 
 	_decrement_thd_count();
+	debug("FINISH _registration_engine call..");
+#ifdef SLURM_SIMULATOR
+	debug("call signal_sim_mgr..");
+	signal_sim_mgr();
+#endif	
+
+	pthread_exit(NULL);
+
 	return NULL;
 }
+
+#ifdef SLURM_SIMULATOR
+/* send signal to sim_mgr to continue */
+int signal_sim_mgr(){
+
+	pid_t pid_sim_mgr;
+	char output[10];
+	FILE *cmd = popen("pidof -s sim_mgr", "r");
+
+	fgets(output, 10, cmd);
+	pid_sim_mgr = strtoul(output, NULL, 10);
+	debug("SIM_MGR_PID: %lu\n", pid_sim_mgr);
+	kill(pid_sim_mgr, SIGUSR2);
+	pclose(cmd);
+	return 0;
+}
+
+static int
+_send_complete_batch_script_msg(uint32_t jobid, int err, int status)
+{
+       int             rc, i;
+       slurm_msg_t     req_msg;
+       complete_batch_script_msg_t req;
+
+       req.job_id      = jobid;
+       req.job_rc      = status;
+       req.slurm_rc    = err;
+
+       slurm_msg_t_init(&req_msg);
+       req.node_name   = NULL;
+       req_msg.msg_type= REQUEST_COMPLETE_BATCH_SCRIPT;
+       req_msg.data    = &req;
+
+       info("SIM: sending REQUEST_COMPLETE_BATCH_SCRIPT");
+
+       /* Note: these log messages don't go to slurmd.log from here */
+       for (i=0; i<=5; i++) {
+               struct timespec waiting;
+
+               if (slurm_send_recv_controller_rc_msg(&req_msg, &rc) == 0)
+                       break;
+               info("SIM: Retrying job complete RPC for %u",
+                    jobid);
+               waiting.tv_sec = 0;
+               waiting.tv_nsec = 10000000;
+               //usleep(10000);
+               nanosleep(&waiting, 0);
+       }
+       if (i > 5) {
+               sleep(10);
+               error("SIM: Unable to send job complete message: %m");
+               return SLURM_ERROR;
+       }
+
+       if ((rc == ESLURM_ALREADY_DONE) || (rc == ESLURM_INVALID_JOB_ID))
+               rc = SLURM_SUCCESS;
+       if (rc)
+               slurm_seterrno_ret(rc);
+
+       return SLURM_SUCCESS;
+}
+
+static int
+_send_sim_helper_cycle_msg(uint32_t jobs_count)
+{
+       int             rc, i;
+       slurm_msg_t     req_msg;
+       sim_helper_msg_t req;
+
+       req.total_jobs_ended = jobs_count;
+
+       slurm_msg_t_init(&req_msg);
+       req_msg.msg_type= MESSAGE_SIM_HELPER_CYCLE;
+       req_msg.data    = &req;
+
+       info("SIM: sending MESSAGE_SIM_HELPER_CYCLE");
+
+       /* Note: these log messages don't go to slurmd.log from here */
+       for (i=0; i<=5; i++) {
+               struct timespec waiting;
+
+               if (slurm_send_recv_controller_rc_msg(&req_msg, &rc) == 0)
+                       break;
+               info("SIM: Retrying message helper cycle RPC");
+               waiting.tv_sec = 0;
+               waiting.tv_nsec = 10000000;
+               //usleep(10000);
+               nanosleep(&waiting, 0);
+       }
+       if (i > 5) {
+               sleep(10);
+               error("SIM: Unable to send message helper cycle complete message: %m");
+               return SLURM_ERROR;
+       }
+
+       if ((rc == ESLURM_ALREADY_DONE) || (rc == ESLURM_INVALID_JOB_ID))
+               rc = SLURM_SUCCESS;
+       if (rc)
+               slurm_seterrno_ret(rc);
+
+       return SLURM_SUCCESS;
+}
+
+int
+open_global_sync_sem() {
+	int iter = 0;
+	while(mutexserver == SEM_FAILED && iter < 10) {
+		mutexserver = sem_open(SEM_NAME,0,0644,0);
+		if(mutexserver == SEM_FAILED) sleep(1);
+		++iter;
+	}
+
+	if(mutexserver == SEM_FAILED)
+		return -1;
+	else
+		return 0;
+}
+
+void
+perform_global_sync() {
+	while(*global_sync_flag < 2 || *global_sync_flag > 4 ) {
+		usleep(1000);
+	}
+
+	sem_wait(mutexserver);
+	*global_sync_flag += 1;
+	if(*global_sync_flag > 4) *global_sync_flag = 1;
+	sem_post(mutexserver);
+}
+
+void
+close_global_sync_sem() {
+	if(mutexserver != SEM_FAILED) sem_close(mutexserver);
+}
+
+void *
+_simulator_helper(void *arg)
+{
+	time_t now, last;
+	int jobs_ended;
+
+	_increment_thd_count();
+
+	open_global_sync_sem();
+
+	last = 0;
+	now = 0;
+	info("SIM: Simulator Helper starting...\n");
+	while (!_shutdown) {
+
+		jobs_ended = 0;
+		now = time(NULL);
+		info("now: %ld last: %ld diff: %ld", now, last, now - last);
+		pthread_mutex_lock(&simulator_mutex);
+		if(head_simulator_event)
+			info("Simulator Helper cycle: %ld, Next event at %ld, total_sim_events: %d\n", now, head_simulator_event->when, total_sim_events);
+		else
+			info("Simulator Helper cycle: %ld, No events!!!\n", now);
+
+		while((head_simulator_event) && (now >= head_simulator_event->when)){
+			volatile simulator_event_t *aux;
+			int event_jid;
+			event_jid = head_simulator_event->job_id;
+			aux = head_simulator_event;
+			head_simulator_event = head_simulator_event->next;
+			aux->next = head_sim_completed_jobs;
+			head_sim_completed_jobs = aux;
+			total_sim_events--;
+			info("SIM: Sending JOB_COMPLETE_BATCH_SCRIPT for job %d", event_jid);
+			pthread_mutex_unlock(&simulator_mutex);
+			_send_complete_batch_script_msg(event_jid, SLURM_SUCCESS, 0);
+			pthread_mutex_lock(&simulator_mutex);
+			info("SIM: JOB_COMPLETE_BATCH_SCRIPT for job %d SENT", event_jid);
+			jobs_ended++;
+
+		}
+		pthread_mutex_unlock(&simulator_mutex);
+		last = now;
+		if(jobs_ended){
+			/* Let's give some time to EPILOG_MESSAGE process to terminate  */
+			/* TODO: It should be done better with a counter of EPILOG messages processed */
+			usleep(1000);
+			_send_sim_helper_cycle_msg(jobs_ended);
+		} else {
+			_send_sim_helper_cycle_msg(0);
+		}
+
+		perform_global_sync();
+
+	}
+	info("SIM: Simulator Helper finishing...");
+
+	close_global_sync_sem();
+	pthread_exit(0);
+	_decrement_thd_count();
+	return NULL;
+}
+#endif
 
 static void
 _msg_engine(void)
@@ -506,6 +776,7 @@ _increment_thd_count(void)
 		slurm_cond_wait(&active_cond, &active_mutex);
 	}
 	active_threads++;
+
 	slurm_mutex_unlock(&active_mutex);
 }
 
@@ -584,6 +855,9 @@ cleanup:
 	debug2("Finish processing RPC: %s", rpc_num2string(msg->msg_type));
 	slurm_free_msg(msg);
 	_decrement_thd_count();
+
+	pthread_exit(NULL);
+
 	return NULL;
 }
 
@@ -1737,11 +2011,13 @@ _slurmd_init(void)
 
 	rlimits_maximize_nofile();
 
+#ifndef SLURM_SIMULATOR
 	/*
 	 * Create a context for verifying slurm job credentials
 	 */
 	if (!(conf->vctx = slurm_cred_verifier_ctx_create(conf->pubkey)))
 		return SLURM_ERROR;
+#endif
 
 	if (conf->cleanstart) {
 		/*

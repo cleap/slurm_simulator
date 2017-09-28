@@ -608,8 +608,11 @@ static void *_wdog(void *args)
 		thd_comp.no_resp_cnt = 0;   /* assume all threads respond */
 		thd_comp.retry_cnt   = 0;   /* assume no required retries */
 		thd_comp.now         = time(NULL);
-
+#ifndef SLURM_SIMULATOR
 		usleep(usec);
+#else
+		sleep(1);
+#endif
 		usec = MIN((usec * 2), 1000000);
 
 		slurm_mutex_lock(&agent_ptr->thread_mutex);
@@ -813,6 +816,7 @@ static void _notify_slurmctld_nodes(agent_info_t *agent_ptr,
 finished:	;
 	}
 	unlock_slurmctld(node_write_lock);
+#ifndef SLURM_SIMULATOR
 	if (run_scheduler) {
 		run_scheduler = false;
 		/* below functions all have their own locking */
@@ -821,6 +825,7 @@ finished:	;
 			schedule_node_save();
 		}
 	}
+#endif
 	if ((agent_ptr->msg_type == REQUEST_PING) ||
 	    (agent_ptr->msg_type == REQUEST_HEALTH_CHECK) ||
 	    (agent_ptr->msg_type == REQUEST_ACCT_GATHER_UPDATE) ||
