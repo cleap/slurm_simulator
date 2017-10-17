@@ -2344,6 +2344,11 @@ static void  _slurm_rpc_epilog_complete(slurm_msg_t *msg,
 #ifndef SLURM_SIMULATOR
 	/* Functions below provide their own locking */
 	if (!running_composite && *run_scheduler) {
+		debug2("_slurm_rpc_epilog_complete JobId=%u Node=%s %s",
+		       epilog_msg->job_id, epilog_msg->node_name,
+		       TIME_STR);
+#ifdef SLURM_SIMULATOR
+		queue_job_scheduler();
 		/*
 		 * In defer mode, avoid triggering the scheduler logic
 		 * for every epilog complete message.
@@ -2353,11 +2358,13 @@ static void  _slurm_rpc_epilog_complete(slurm_msg_t *msg,
 		 * of managed jobs.
 		 */
 		if (!LOTS_OF_AGENTS && !defer_sched)
+			queue_job_scheduler();
+#else
 			(void) schedule(0);	/* Has own locking */
 		schedule_node_save();		/* Has own locking */
 		schedule_job_save();		/* Has own locking */
-	}
 #endif
+	}
 	/* NOTE: RPC has no response */
 }
 
@@ -7062,17 +7069,20 @@ static void _slurm_rpc_sim_helper_cycle(slurm_msg_t * msg)
         sim_helper_msg_t *helper_msg =
                 (sim_helper_msg_t *) msg->data;
 
-        info("Processing RPC: MESSAGE_SIM_HELPER_CYCLE for %d jobs",
+        debug3("Processing RPC: MESSAGE_SIM_HELPER_CYCLE for %d jobs",
         		helper_msg->total_jobs_ended);
         time_t current_time=time(NULL);
-        if (last_helper_schedule_time==0 ||
-           (current_time-last_helper_schedule_time)>HELPER_SCHEDULE_PERIOD_S) {
+	  if (get_scheduler_cnt() > 0) {
+		reset_scheduler_cnt();
+//        if (last_helper_schedule_time==0 ||
+//           (current_time-last_helper_schedule_time)>HELPER_SCHEDULE_PERIOD_S) {
         	schedule(0);
         	last_helper_schedule_time=current_time;
         }
         if (last_helper_backfill_time==0 ||
         	(current_time-last_helper_backfill_time)>HELPER_BACKFILL_PERIOD_S) {
-        	do_backfill();
+        	info("unlocking backfill");
+		do_backfill();
         	last_helper_backfill_time=current_time;
         }
 

@@ -1051,6 +1051,14 @@ extern void queue_job_scheduler(void)
 	job_sched_cnt++;
 	slurm_mutex_unlock(&sched_cnt_mutex);
 }
+extern int get_scheduler_cnt(void)
+{
+	return job_sched_cnt;
+}
+extern void reset_scheduler_cnt(void)
+{
+	job_sched_cnt = 0;
+}
 
 /* _slurmctld_signal_hand - Process daemon-wide signals */
 void *_slurmctld_signal_hand(void *no_data)
@@ -2222,6 +2230,7 @@ static void *_slurmctld_background(void *no_data)
 		}
 
 		job_limit = NO_VAL;
+#ifndef SLURM_SIMULATOR
 		if (difftime(now, last_full_sched_time) >= sched_interval) {
 			slurm_mutex_lock(&sched_cnt_mutex);
 			/* job_limit = job_sched_cnt;	Ignored */
@@ -2239,7 +2248,7 @@ static void *_slurmctld_background(void *no_data)
 			}
 			slurm_mutex_unlock(&sched_cnt_mutex);
 		}
-#ifndef SLURM_SIMULATOR
+//#ifndef SLURM_SIMULATOR
 		if (job_limit != NO_VAL) {
 			lock_slurmctld(job_write_lock2);
 			now = time(NULL);

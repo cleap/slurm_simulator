@@ -332,6 +332,7 @@ static void _set_job_time_limit(struct job_record *job_ptr, uint32_t new_limit)
  */
 static bool _many_pending_rpcs(void)
 {
+#ifndef SLURM_SIMULATOR
 	bool many_pending_rpcs = false;
 
 	slurm_mutex_lock(&slurmctld_config.thread_count_lock);
@@ -342,7 +343,10 @@ static bool _many_pending_rpcs(void)
 	slurm_mutex_unlock(&slurmctld_config.thread_count_lock);
 
 	return many_pending_rpcs;
-
+#else
+	/* Marco: Simulator: time should be not passing here so no rpc should arrive */
+	return false;
+#endif
 }
 
 /*
