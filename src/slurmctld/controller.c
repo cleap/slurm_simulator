@@ -219,6 +219,8 @@ static pthread_mutex_t sched_cnt_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pid_t	slurmctld_pid;
 static char *	slurm_conf_filename;
 
+FILE *stats = NULL;
+
 #ifdef SLURM_SIMULATOR
 char SEM_NAME[]		= "serversem";
 sem_t* mutexserver	= SEM_FAILED;
@@ -776,8 +778,16 @@ int main(int argc, char **argv)
 		/*
 		 * process slurm background activities, could run as pthread
 		 */
+		stats = fopen("slurmctld_stats", "w");
+		if (stats == NULL)
+			error("Cannot open file for reporting statistics!");
+
 		_slurmctld_background(NULL);
 
+		/* Marco: Report some statistics  */
+		if (stats != NULL) {
+			fprintf(stats, "Total backfilled jobs: %d\n", slurmctld_diag_stats.backfilled_jobs);
+		}
 		/* termination of controller */
 		switch_g_save(slurmctld_conf.state_save_location);
 		slurm_priority_fini();
@@ -1318,7 +1328,8 @@ void *_service_connection(void *arg)
 #endif
 	slurm_msg_t_init(&msg);
 	msg.flags |= SLURM_MSG_KEEP_BUFFER;
-	open_global_sync_sem();
+	if (msg->msg_type == MESSAGE_SIM_HELPER_CYCLE)
+		open_global_sync_sem();
 	/*
 	 * slurm_receive_msg sets msg connection fd to accepted fd. This allows
 	 * possibility for slurmctld_req() to close accepted connection.
@@ -1350,8 +1361,8 @@ cleanup:
 	slurm_free_msg_members(&msg);
 	xfree(arg);
 	server_thread_decr();
-
-	perform_global_sync(); /* st on 20151020 */
+	if (msg->msg_type == MESSAGE_SIM_HELPER_CYCLE)
+		perform_global_sync(); /* st on 20151020 */
 	return return_code;
 }
 
@@ -1967,7 +1978,7 @@ static void *_slurmctld_background(void *no_data)
 	int i;
 	uint32_t job_limit;
 	DEF_TIMERS;
-
+	int last_free_nodes_value = -1;
 	/* Locks: Read config */
 	slurmctld_lock_t config_read_lock = {
 		READ_LOCK, NO_LOCK, NO_LOCK, NO_LOCK, NO_LOCK };
