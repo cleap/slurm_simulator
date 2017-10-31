@@ -64,6 +64,7 @@ typedef enum {
 	WINDOW_MSGS
 } msg_aggr_param_type_t;
 
+extern int waiting_epilog_msgs;
 /*
  * Global config type
  */
