@@ -971,7 +971,7 @@ static int _list_find_all(void *x, void *key)
 {
 	return 1;
 }
-
+/*
 #ifdef SLURM_SIMULATOR
 int
 open_global_sync_sem() {
@@ -1005,7 +1005,7 @@ close_global_sync_sem() {
 }
 #endif
 
-
+*/
 
 #ifdef SLURM_SIMULATOR
 
@@ -1047,7 +1047,7 @@ extern void *backfill_agent(void *args)
 	/* Read config and partitions; Write jobs and nodes */
 	slurmctld_lock_t all_locks = {
 		READ_LOCK, WRITE_LOCK, WRITE_LOCK, READ_LOCK, READ_LOCK };
-	open_global_sync_sem();
+	//open_global_sync_sem();
 	bool load_config;
 	bool short_sleep = false;
 	int backfill_cnt = 0;
@@ -1074,8 +1074,10 @@ extern void *backfill_agent(void *args)
 		else
 			_my_sleep((int64_t) backfill_interval * 1000000);
 #endif
-		if (stop_backfill)
+		if (stop_backfill) {
+			sem_post(mutex_bf_done_pg);
 			break;
+		}
 
 		if (slurmctld_config.scheduling_disabled)
 			continue;

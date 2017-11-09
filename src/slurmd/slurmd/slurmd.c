@@ -248,6 +248,48 @@ static void      _usr_handler(int);
 static int       _validate_and_convert_cpu_list(void);
 static void      _wait_for_all_threads(int secs);
 
+#ifdef SLURM_SIMULATOR
+int
+open_global_sync_sem() {
+        int iter = 0;
+        while(mutexserver == SEM_FAILED && iter < 10) {
+                mutexserver = sem_open(SEM_NAME,0,0644,0);
+                if(mutexserver == SEM_FAILED) sleep(1);
+                ++iter;
+        }
+
+        if(mutexserver == SEM_FAILED)
+                return -1;
+        else
+                return 0;
+}
+
+void
+perform_global_sync() {
+        while(1) {
+                sem_wait(mutexserver);
+                if (*global_sync_flag == 2) {
+                        sem_post(mutexserver);
+                        break;
+                }
+                sem_post(mutexserver);
+                usleep(1000);
+        }
+}
+/*void perform_global_sync_end()
+{
+	sem_wait(mutexserver);
+        debug3("Finished with slurmd");
+        *global_sync_flag = 3;
+        sem_post(mutexserver);
+}*/
+
+void
+close_global_sync_sem() {
+        if(mutexserver != SEM_FAILED) sem_close(mutexserver);
+}
+#endif
+
 /**************************************************************************\
  * To test for memory leaks, set MEMORY_LEAK_DEBUG to 1 using
  * "configure --enable-memory-leak-debug" then execute
@@ -428,6 +470,8 @@ main (int argc, char **argv)
 	slurm_thread_create_detached(NULL, _registration_engine, NULL);
 
 #ifdef SLURM_SIMULATOR
+	if (open_global_sync_sem() == -1)
+		debug("Error opening mutexserver");
        _spawn_simulator_helper();
 #endif
 	_msg_engine();
@@ -440,8 +484,8 @@ main (int argc, char **argv)
 		(void) close(pidfd);	/* Ignore errors */
 	if (unlink(conf->pidfile) < 0)
 		error("Unable to remove pidfile `%s': %m", conf->pidfile);
-
 	_wait_for_all_threads(120);
+	close_global_sync_sem();
 	_slurmd_fini();
 	_destroy_conf();
 	slurm_cred_fini();	/* must be after _destroy_conf() */
@@ -618,38 +662,6 @@ _send_sim_helper_cycle_msg(uint32_t jobs_count)
        return SLURM_SUCCESS;
 }
 
-int
-open_global_sync_sem() {
-	int iter = 0;
-	while(mutexserver == SEM_FAILED && iter < 10) {
-		mutexserver = sem_open(SEM_NAME,0,0644,0);
-		if(mutexserver == SEM_FAILED) sleep(1);
-		++iter;
-	}
-
-	if(mutexserver == SEM_FAILED)
-		return -1;
-	else
-		return 0;
-}
-
-void
-perform_global_sync() {
-	while(*global_sync_flag < 2) {
-		usleep(1000);
-	}
-
-	sem_wait(mutexserver);
-	debug3("Finished with slurmd");
-	*global_sync_flag = 3;
-	sem_post(mutexserver);
-}
-
-void
-close_global_sync_sem() {
-	if(mutexserver != SEM_FAILED) sem_close(mutexserver);
-}
-
 void *
 _simulator_helper(void *arg)
 {
@@ -658,13 +670,13 @@ _simulator_helper(void *arg)
 
 	_increment_thd_count();
 
-	open_global_sync_sem();
+	//open_global_sync_sem();
 
 	last = 0;
 	now = 0;
 	info("SIM: Simulator Helper starting...\n");
 	while (!_shutdown) {
-
+		perform_global_sync();
 		jobs_ended = 0;
 		now = time(NULL);
 		info("now: %ld last: %ld diff: %ld", now, last, now - last);
@@ -707,12 +719,11 @@ _simulator_helper(void *arg)
 			_send_sim_helper_cycle_msg(0);
 		}
 
-		perform_global_sync();
+		//perform_global_sync_end();
 
 	}
 	info("SIM: Simulator Helper finishing...");
 
-	close_global_sync_sem();
 	pthread_exit(0);
 	_decrement_thd_count();
 	return NULL;
