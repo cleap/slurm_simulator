@@ -672,6 +672,7 @@ struct job_record {
 	uint32_t bit_flags;             /* various job flags */
 	char *burst_buffer;		/* burst buffer specification */
 	char *burst_buffer_state;	/* burst buffer state */
+	uint32_t backfilled;
 	check_jobinfo_t check_job;      /* checkpoint context, opaque */
 	uint16_t ckpt_interval;		/* checkpoint interval in minutes */
 	time_t ckpt_time;		/* last time job was periodically

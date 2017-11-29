@@ -2906,6 +2906,7 @@ static int _start_job(struct job_record *job_ptr, bitstr_t *resv_bitmap)
 			srun_allocate(job_ptr);
 		else if (!IS_JOB_CONFIGURING(job_ptr))
 			launch_job(job_ptr);
+		job_ptr->backfilled = 1;
 		slurmctld_diag_stats.backfilled_jobs++;
 		slurmctld_diag_stats.last_backfilled_jobs++;
 		if (job_ptr->pack_job_id)
