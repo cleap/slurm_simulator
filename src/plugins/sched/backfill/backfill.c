@@ -109,6 +109,8 @@
 #define BACKFILL_RESOLUTION	60
 #define BACKFILL_WINDOW		(24 * 60 * 60)
 #define BF_MAX_JOB_ARRAY_RESV	20
+#define BACKFILL_QUEUE_LIMIT    50
+
 
 #define SLURMCTLD_THREAD_LIMIT	5
 #define YIELD_INTERVAL		2000000	/* time in micro-seconds */
@@ -194,6 +196,7 @@ static bool config_flag = false;
 static uint64_t debug_flags = 0;
 static int backfill_interval = BACKFILL_INTERVAL;
 static int bf_max_time = BACKFILL_INTERVAL;
+static int backfill_queue_limit = BACKFILL_QUEUE_LIMIT;
 static int backfill_resolution = BACKFILL_RESOLUTION;
 static int backfill_window = BACKFILL_WINDOW;
 static int bf_job_part_count_reserve = 0;
@@ -699,6 +702,14 @@ static void _load_config(void)
 		bf_max_time = backfill_interval;
 	}
 
+	/*ANA: Adding new bf parameter for limiting job queue depth, i.e., number of jobs in the queue  considered to be backfilled */
+	if (sched_params && (tmp_ptr=strstr(sched_params, "bf_queue_limit=")))
+		backfill_queue_limit = atoi(tmp_ptr + 15);
+	if (backfill_queue_limit < 1) {
+		error("Invalid SchedulerParameters bf_queue_limit: %d",
+				backfill_queue_limit);
+		backfill_queue_limit = BACKFILL_QUEUE_LIMIT;
+	}
 	if ((tmp_ptr = xstrcasestr(sched_params, "bf_window="))) {
 		backfill_window = atoi(tmp_ptr + 10) * 60;  /* mins to secs */
 		if (backfill_window < 1 ||
@@ -1758,6 +1769,13 @@ static int _attempt_backfill(void)
 		bf_job_priority  = job_queue_rec->priority;
 		bf_array_task_id = job_queue_rec->array_task_id;
 		xfree(job_queue_rec);
+		/* ANA: checking if job limit has been reached*/
+		if (job_test_count >= backfill_queue_limit) {
+			if (debug_flags & DEBUG_FLAG_BACKFILL)
+				info("backfill: reached test job limit");
+			break;
+		}
+		/**********************************************************/
 
 		if (slurmctld_config.shutdown_time ||
 		    (difftime(time(NULL),orig_sched_start) >= bf_max_time)){
