@@ -706,6 +706,7 @@ extern void *backfill_agent(void *args)
  * partition state or the backfill scheduler needs to be stopped. */
 static int _yield_locks(int secs)
 {
+#ifndef SLURM_SIMULATOR
 	slurmctld_lock_t all_locks = {
 		READ_LOCK, WRITE_LOCK, WRITE_LOCK, READ_LOCK };
 	time_t job_update, node_update, part_update;
@@ -726,6 +727,9 @@ static int _yield_locks(int secs)
 		return 0;
 	else
 		return 1;
+#else
+	return 0;
+#endif
 }
 
 static int _attempt_backfill(void)
@@ -1484,6 +1488,8 @@ static bool _more_work (time_t last_backfill_time)
 		rc = true;
 	}
 	pthread_mutex_unlock( &thread_flag_mutex );
+	if(rc)
+	debug2("last bf %d, last job update %d, last node update %d, last part update %d", last_backfill_time, last_job_update, last_node_update, last_part_update);
 	return rc;
 }
 
