@@ -407,7 +407,6 @@ static char ** _create_environment (struct jobcomp_info *job)
 		_env_append (&env, "STDERR",     job->std_err);
 	_env_append_fmt (&env, "BACKFILLED", "%d", job->backfilled);
 #ifdef HAVE_BG
-	_env_appenddd (&env, "BACKFILLED", (job->backfilled ? "yes" : "no"));
 	_env_append (&env, "BLOCKID",      job->blockid);
 	_env_append (&env, "CONNECT_TYPE", job->connect_type);
 	_env_append (&env, "GEOMETRY",     job->geometry);
