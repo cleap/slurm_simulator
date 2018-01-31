@@ -96,6 +96,10 @@
 #  define BACKFILL_INTERVAL	30
 #endif
 
+#ifndef BACKFILL_QUEUE_LIMIT
+#  define BACKFILL_QUEUE_LIMIT    50
+#endif
+
 #ifndef BACKFILL_RESOLUTION
 #  define BACKFILL_RESOLUTION	60
 #endif
@@ -138,6 +142,7 @@ static pthread_cond_t  term_cond = PTHREAD_COND_INITIALIZER;
 static bool config_flag = false;
 static uint32_t debug_flags = 0;
 static int backfill_interval = BACKFILL_INTERVAL;
+static int backfill_queue_limit = BACKFILL_QUEUE_LIMIT;
 static int backfill_resolution = BACKFILL_RESOLUTION;
 static int backfill_window = BACKFILL_WINDOW;
 static int max_backfill_job_cnt = 100;
@@ -458,6 +463,16 @@ static void _load_config(void)
 		      backfill_interval);
 		backfill_interval = BACKFILL_INTERVAL;
 	}
+
+        /*ANA: Adding new bf parameter for limiting job queue depth, i.e., number of jobs in the queue considered to be backfilled */
+        if (sched_params && (tmp_ptr=strstr(sched_params, "bf_queue_limit=")))
+                backfill_queue_limit = atoi(tmp_ptr + 15);
+        if (backfill_queue_limit < 1) {
+                error("Invalid SchedulerParameters bf_queue_limit: %d",
+                      backfill_queue_limit);
+                backfill_queue_limit = BACKFILL_QUEUE_LIMIT;
+        }
+        /**********************************************************************/
 
 	if (sched_params && (tmp_ptr=strstr(sched_params, "bf_window=")))
 		backfill_window = atoi(tmp_ptr + 10) * 60;  /* mins to secs */
@@ -856,6 +871,13 @@ static int _attempt_backfill(void)
 				info("backfill: reached end of job queue");
 			break;
 		}
+                /* ANA: checking if job limit has been reached*/
+                if (job_test_count >= backfill_queue_limit) {
+                        if (debug_flags & DEBUG_FLAG_BACKFILL)
+                                info("backfill: reached test job limit");
+                        break;
+                }
+                /**********************************************************/
 		if (slurmctld_config.shutdown_time)
 			break;
 		if (((defer_rpc_cnt > 0) &&
@@ -1318,7 +1340,7 @@ static int _attempt_backfill(void)
 						avail_bitmap);
 			continue;
 		}
-
+                //info("backfill: node_space_recs %d, max_backfill_job_cnt %u",node_space_recs, max_backfill_job_cnt);
 		if (node_space_recs >= max_backfill_job_cnt) {
 			if (debug_flags & DEBUG_FLAG_BACKFILL) {
 				info("backfill: table size limit of %u reached",
@@ -1525,6 +1547,7 @@ static void _add_reservation(uint32_t start_time, uint32_t end_reserve,
 				bit_copy(node_space[j].avail_bitmap);
 			node_space[i].next = node_space[j].next;
 			node_space[j].next = i;
+                        //info("backfill: at end greater start, increment node_space_recs %d", *node_space_recs);
 			(*node_space_recs)++;
 			placed = true;
 		}
@@ -1546,6 +1569,7 @@ static void _add_reservation(uint32_t start_time, uint32_t end_reserve,
 							 avail_bitmap);
 					node_space[i].next = node_space[j].next;
 					node_space[j].next = i;
+                                        //info("backfill: at placed true, increment node_space_recs %d", *node_space_recs);
 					(*node_space_recs)++;
 					break;
 				}
