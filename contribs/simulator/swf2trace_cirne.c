@@ -23,7 +23,7 @@ typedef struct job_trace {
     char username[MAX_USERNAME_LEN];
     long int submit; /* relative or absolute? */
     int  duration;
-    int  wclimit;
+    int  wclimit; /*in minutes!*/
     int  tasks;
     char qosname[MAX_QOSNAME];
     char partition[MAX_QOSNAME];
@@ -44,7 +44,7 @@ int main(int argc, char* argv[])
 {
     int i;
     int idx=0, errs=0;
-    int nrecs=250; // Number of records has to be entered here each time. This should be done differently.
+    int nrecs=5000; // Number of records has to be entered here each time. This should be done differently.
     job_trace_t* job_trace,* job_trace_head,* job_arr,* job_ptr;
     char const* const fileName = argv[1]; /* should check that argc > 1 */
     FILE* file = fopen(fileName, "r"); /* should check the result */
@@ -68,7 +68,7 @@ int main(int argc, char* argv[])
             if(i==0) { job_arr[idx].job_id = ++job_index; printf("Index is: %d", job_index); }
             else if(i==4) { printf("Submit time: %s\n", p); if (first_arrival == 0) first_arrival =atoi(p); job_arr[idx].submit = 100 + atoi(p) - first_arrival; }  // why submit cannot start from 0? 
 	    else if(i==5) { printf("Ntasks/nodes: %s\n", p); job_arr[idx].tasks = atoi(p); }
-            else if(i==6) { printf("Wallclock limit: %s\n", p); job_arr[idx].wclimit = atoi(p); }   
+            else if(i==6) { printf("Wallclock limit: %s\n", p); job_arr[idx].wclimit = ceil((double)atoi(p) / 60.0f); }   
             else if(i==7) { printf("Startime: %s\n", p); start_time = atoi(p); }
             else if(i==8) { printf("End time: %s\n", p); job_arr[idx].duration = atoi(p) - start_time; printf("Duration: %d\n", job_arr[idx].duration);}
             else printf(" %s\n", p);

@@ -44,7 +44,7 @@ int main(int argc, char* argv[])
 {
     int i;
     int idx=1, errs=0;
-    int nrecs=11000; // Number of records has to be entered here each time. This should be done differently.
+    int nrecs=10000; // Number of records has to be entered here each time. This should be done differently.
     int counter=0;
     job_trace_t* job_trace,* job_trace_head,* job_arr,* job_ptr;
     char const* const fileName = argv[1]; /* should check that argc > 1 */
@@ -71,7 +71,7 @@ int main(int argc, char* argv[])
             if(i==3) { printf("%s", p); job_arr[idx].duration = atoi(p); }   
             if(i==7) { printf("%s", p); job_arr[idx].tasks = ceil((float) (atoi(p)/CPUS_PER_NODE)); }
             //if(i==7) { printf("%s", p); job_arr[idx].tasks = ceil((float) atoi(p)); }
-            if(i==8) { printf("%s", p); job_arr[idx].wclimit = atoi(p); }   
+            if(i==8) { printf("%s", p); job_arr[idx].wclimit = ceil((double)atoi(p) / 60.0f); }   
             //if(i==11) { printf("%s", p); strcpy(job_arr[idx].username, p); }   
             //if(i==12) { printf("%s", p); strcpy(job_arr[idx].account, p); }   
             //if(i==15) { printf("%s", p); strcpy(job_arr[idx].partition, p); }   
