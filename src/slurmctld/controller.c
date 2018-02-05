@@ -225,8 +225,9 @@ FILE *stats = NULL;
 char SEM_NAME[]		= "serversem";
 sem_t* mutexserver	= SEM_FAILED;
 int total_log_jobs=0;
-//bool terminate_simulation_from_ctr=0; /* ANA: it will be read by sim_mgr in order to terminate simulation when all jobs have finished. */
+int backfill_interval=30; //initialize here global variable backfill interval to the default value
 #endif
+
 
 /*
  * Static list of signals to block in this process
@@ -341,7 +342,7 @@ int main(int argc, char **argv)
 	if (!test_config)
 		_kill_old_slurmctld();
 
-        total_log_jobs= *trace_recs_end_sim; /* ANA: shared memory variable stored in a global variable, as it will not be changed by another process, to avoid accessing shared memory every time. */
+	total_log_jobs= *trace_recs_end_sim; /* ANA: shared memory variable stored in a global variable, as it will not be changed by another process, to avoid accessing shared memory every time. */
 
 	for (i = 0; i < 3; i++)
 		fd_set_close_on_exec(i);
@@ -1331,13 +1332,16 @@ void *_service_connection(void *arg)
 {
 	connection_arg_t *conn = (connection_arg_t *) arg;
 	void *return_code = NULL;
+	//slurm_msg_t msg;
 	slurm_msg_t msg;
-
+	int do_sync_flag=0;
+	
 #if HAVE_SYS_PRCTL_H
 	if (prctl(PR_SET_NAME, "srvcn", NULL, NULL, NULL) < 0) {
 		error("%s: cannot set my name to %s %m", __func__, "srvcn");
 	}
 #endif
+	debug("In service_connection");
 	slurm_msg_t_init(&msg);
 	msg.flags |= SLURM_MSG_KEEP_BUFFER;
 /*	if (msg->msg_type == MESSAGE_SIM_HELPER_CYCLE)
@@ -1357,7 +1361,6 @@ void *_service_connection(void *arg)
 		close(conn->newsockfd);
 		goto cleanup;
 	}
-
 	if (errno != SLURM_SUCCESS) {
 		if (errno == SLURM_PROTOCOL_VERSION_ERROR) {
 			slurm_send_rc_msg(&msg, SLURM_PROTOCOL_VERSION_ERROR);
@@ -1375,8 +1378,9 @@ cleanup:
 	slurm_free_msg_members(&msg);
 	xfree(arg);
 	server_thread_decr();
-	if (msg->msg_type == MESSAGE_SIM_HELPER_CYCLE)
-		perform_global_sync(); /* st on 20151020 */
+	if (msg.msg_type == MESSAGE_SIM_HELPER_CYCLE) {
+    	perform_global_sync(); /* st on 20151020 */
+	}
 	return return_code;
 }
 

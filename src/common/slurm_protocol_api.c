@@ -4043,7 +4043,6 @@ int slurm_send_node_msg(int fd, slurm_msg_t * msg)
 	int      rc;
 	void *   auth_cred;
 	time_t   start_time = time(NULL);
-
 	if (msg->conn) {
 		persist_msg_t persist_msg;
 
@@ -4051,7 +4050,6 @@ int slurm_send_node_msg(int fd, slurm_msg_t * msg)
 		persist_msg.msg_type  = msg->msg_type;
 		persist_msg.data      = msg->data;
 		persist_msg.data_size = msg->data_size;
-
 		buffer = slurm_persist_msg_pack(msg->conn, &persist_msg);
 		if (!buffer)    /* pack error */
 			return SLURM_ERROR;
@@ -4707,7 +4705,6 @@ tryagain:
 cleanup:
 	if (rc != 0)
  		_remap_slurmctld_errno();
-
 	return rc;
 }
 
@@ -5045,7 +5042,6 @@ extern int slurm_send_recv_controller_rc_msg(slurm_msg_t *req, int *rc,
 {
 	int ret_c;
 	slurm_msg_t resp;
-
 	if (!slurm_send_recv_controller_msg(req, &resp, comm_cluster_rec)) {
 		*rc = slurm_get_return_code(resp.msg_type, resp.data);
 		slurm_free_msg_data(resp.msg_type, resp.data);
@@ -5053,7 +5049,6 @@ extern int slurm_send_recv_controller_rc_msg(slurm_msg_t *req, int *rc,
 	} else {
 		ret_c = -1;
 	}
-
 	return ret_c;
 }
 
@@ -5115,13 +5110,18 @@ extern int *set_span(int total,  uint16_t tree_width)
  * Free a slurm message's memebers but not the message itself
  */
 extern void slurm_free_msg_members(slurm_msg_t *msg)
-{
+{	
 	if (msg) {
-		if (msg->auth_cred)
+		if (msg->auth_cred){
 			(void) g_slurm_auth_destroy(msg->auth_cred);
-		free_buf(msg->buffer);
+		}
+		if(msg->buffer){
+			free_buf(msg->buffer);
+		}
 		slurm_free_msg_data(msg->msg_type, msg->data);
-		FREE_NULL_LIST(msg->ret_list);
+		if(msg->ret_list){
+			FREE_NULL_LIST(msg->ret_list);
+		}
 	}
 }
 

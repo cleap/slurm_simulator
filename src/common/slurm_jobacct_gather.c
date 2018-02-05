@@ -1066,7 +1066,8 @@ rwfail:
 extern void jobacctinfo_pack(jobacctinfo_t *jobacct,
 			     uint16_t rpc_version, uint16_t protocol_type,
 			     Buf buffer)
-{
+{	
+	int i = 0;
 	bool no_pack;
 	uint64_t tmp_uint64;
 	double tmp_dbl;
