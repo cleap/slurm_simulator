@@ -101,6 +101,9 @@
 static pthread_mutex_t throttle_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t throttle_cond = PTHREAD_COND_INITIALIZER;
 
+pthread_mutex_t lock_finishing_jobs = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t lock_remaining_epilogs = PTHREAD_MUTEX_INITIALIZER;
+
 static void         _fill_ctld_conf(slurm_ctl_conf_t * build_ptr);
 static void         _kill_job_on_msg_fail(uint32_t job_id);
 static int          _is_prolog_finished(uint32_t job_id);
@@ -1585,9 +1588,11 @@ static void  _slurm_rpc_epilog_complete(slurm_msg_t * msg)
 //#endif
 	/* NOTE: RPC has no response */
 #ifdef SLURM_SIMULATOR
-	info("SIM: Processing RPC: MESSAGE_EPILOG_COMPLETE for jobid %d", epilog_msg->job_id);
-        slurm_send_rc_msg(msg, SLURM_SUCCESS);
+       	info("SIM: Processing RPC: MESSAGE_EPILOG_COMPLETE for jobid %d", epilog_msg->job_id);
+	slurm_send_rc_msg(msg, SLURM_SUCCESS);
+	pthread_mutex_lock(&lock_remaining_epilogs);
 	finished_jobs_waiting_for_epilog--;
+	pthread_mutex_unlock(&lock_remaining_epilogs);
         /* ANA: keep track of the jobs that have finished in its entirety. */
         total_epilog_complete_jobs++;
         
@@ -1798,7 +1803,9 @@ static void _slurm_rpc_complete_batch_script(slurm_msg_t * msg)
 #endif
 	/* init */
 	START_TIMER;
+	pthread_mutex_lock(&lock_finishing_jobs);
 	total_finished_jobs+=1;
+	pthread_mutex_unlock(&lock_finishing_jobs);
 	debug2("Processing RPC: REQUEST_COMPLETE_BATCH_SCRIPT from "
 	       "uid=%u JobId=%u",
 	       uid, comp_msg->job_id);
@@ -1946,7 +1953,9 @@ static void _slurm_rpc_complete_batch_script(slurm_msg_t * msg)
 	/* Mark job allocation complete */
 	if (msg->msg_type == REQUEST_COMPLETE_BATCH_JOB)
 		job_epilog_complete(comp_msg->job_id, comp_msg->node_name, 0);
+	pthread_mutex_lock(&lock_remaining_epilogs);	
 	finished_jobs_waiting_for_epilog+=1;
+	pthread_mutex_unlock(&lock_remaining_epilogs);
 	i = job_complete(comp_msg->job_id, uid, job_requeue, false,
 			 comp_msg->job_rc);
 	error_code = MAX(error_code, i);
@@ -4892,21 +4901,35 @@ static void do_backfill() {
 
 static void _slurm_rpc_sim_helper_cycle(slurm_msg_t * msg)
 {
+	sim_helper_msg_t *helper_msg =
+                (sim_helper_msg_t *) msg->data;
+
 	if (mutex_bf==NULL) {
 		if(open_BF_sync_semaphore()==-1) {
 			error("Opening backfill semaphore! this may affect backfill"
 				"operations");
 		}
 	}
-	sim_helper_msg_t *helper_msg =
-                (sim_helper_msg_t *) msg->data;
-
-	while (total_finished_jobs < helper_msg->total_jobs_ended) {
+	while (1) {
+		pthread_mutex_lock(&lock_finishing_jobs);
+		if (total_finished_jobs < helper_msg->total_jobs_ended) {
+			pthread_mutex_unlock(&lock_finishing_jobs);
+			break;
+		}
+		pthread_mutex_unlock(&lock_finishing_jobs);
 		debug3("Waiting complete job to arrive");
 		usleep(1000);
 	}
+	pthread_mutex_lock(&lock_finishing_jobs);
 	total_finished_jobs = 0;
-	while (finished_jobs_waiting_for_epilog > 0) {
+	pthread_mutex_unlock(&lock_finishing_jobs);
+	while (1) {
+		pthread_mutex_lock(&lock_remaining_epilogs);
+		if (finished_jobs_waiting_for_epilog == 0) {
+			pthread_mutex_unlock(&lock_remaining_epilogs);
+			break;
+		}
+		pthread_mutex_unlock(&lock_remaining_epilogs);
 		debug3("Waiting epilog to finish");
 		usleep(1000);
 	}

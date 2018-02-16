@@ -134,9 +134,9 @@
 
 /* global, copied to STDERR_FILENO in tasks before the exec */
 int devnull = -1;
-int waiting_epilog_msgs = 0;
 slurmd_conf_t * conf;
-
+int waiting_epilog_msgs = 0;
+pthread_mutex_t epilogs_mutex = PTHREAD_MUTEX_INITIALIZER;
 /*
  * count of active threads
  */
@@ -683,7 +683,9 @@ _simulator_helper(void *arg)
 			pthread_mutex_unlock(&simulator_mutex);
 			_send_complete_batch_script_msg(event_jid, SLURM_SUCCESS, 0);
 			pthread_mutex_lock(&simulator_mutex);
+			pthread_mutex_lock(&epilogs_mutex); //we are in the same thread here
 			waiting_epilog_msgs++;
+			pthread_mutex_unlock(&epilogs_mutex);
 			info("SIM: JOB_COMPLETE_BATCH_SCRIPT for job %d SENT", event_jid);
 			jobs_ended++;
 
@@ -691,10 +693,14 @@ _simulator_helper(void *arg)
 		pthread_mutex_unlock(&simulator_mutex);
 		last = now;
 		if(jobs_ended){
-			/* Let's give some time to EPILOG_MESSAGE process to terminate  */
 			/* TODO: It should be done better with a counter of EPILOG messages processed */
-			
-			while (waiting_epilog_msgs > 0) {
+			while (1) {
+				pthread_mutex_lock(&epilogs_mutex);
+				if (waiting_epilog_msgs == 0) {
+					pthread_mutex_unlock(&epilogs_mutex);
+					break;
+				}
+				pthread_mutex_unlock(&epilogs_mutex);
 				debug3("Waiting epilog to finish");
 				usleep(100);
 			}

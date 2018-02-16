@@ -2680,7 +2680,10 @@ simulator_rpc_terminate_job(slurm_msg_t *rec_msg)
 
 	/* Let wait for an answer for simulation syncronization */
 	slurm_send_recv_controller_rc_msg(&msg, &rc);
+	/* Marco: Lock in order to write when nobody is reading */
+	pthread_mutex_lock(&epilogs_mutex);
 	waiting_epilog_msgs--;
+	pthread_mutex_unlock(&epilogs_mutex);
 	hostlist_destroy(hl);
 	free((void*)event_sim);
 }
