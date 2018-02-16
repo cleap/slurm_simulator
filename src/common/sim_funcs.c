@@ -27,6 +27,7 @@ int             * slurmd_pid;       /* Shared Memory */
 char            * global_sync_flag; /* Shared Memory */
 int             * trace_recs_end_sim; /* Shared Memory */
 char            * users_sim_path = NULL;
+char		shm_name[81] = "";
 
 extern void         * timemgr_data;  /* Shared Memory */
 extern unsigned int * current_sim;   /* Shared Memory */
@@ -71,10 +72,29 @@ int gettimeofday(struct timeval *tv, struct timezone *tz){
 	return 0;
 }
 
+//get value into global var shm_name
+static void get_shm_name()
+{
+	char *sim_id = NULL;
+	if (strcmp(shm_name, "")) {
+		return;
+	}
+	if (sim_id = getenv("SLURM_SIM_ID")) {
+		strcpy(shm_name, "/simulation_");
+                strcat(shm_name, sim_id);
+        }
+        else {
+		fprintf(stderr, "No simulation ID defined\n");
+        	strcpy(shm_name, SLURM_SIM_SHM);
+        }
+	return;
+}
+
 static int build_shared_memory() {
 	int fd;
-
-	fd = shm_open(SLURM_SIM_SHM, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
+	fprintf(stderr, "Building shared memory\n");
+	get_shm_name();
+	fd = shm_open(shm_name, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
 	if (fd < 0) {
 		error("Error opening %s", SLURM_SIM_SHM);
 		return -1;
@@ -101,13 +121,18 @@ static int build_shared_memory() {
  */
 int attaching_shared_memory() { 
 	int fd;
-
-	fd = shm_open(SLURM_SIM_SHM, O_RDWR, S_IRUSR | S_IWUSR);
+	printf("Before calling get_shm_name\n");
+	get_shm_name();
+	fd = shm_open(shm_name, O_RDWR, S_IRUSR | S_IWUSR);
+	printf("Before calling get_shm_name\n");	
 	if (fd >= 0) {
+		printf("fd>0\n");
 		if (ftruncate(fd, 32)) {
 			warn("Can not truncate shared memory segment.");
 		}
+		printf("Before mmap\n");
 		timemgr_data = mmap(0, 32, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+		printf("after mmap\n");
 	} else {
 		build_shared_memory();
 	}
@@ -124,7 +149,6 @@ int attaching_shared_memory() {
 	slurmd_pid       = timemgr_data + SIM_PTHREAD_SLURMD_PID;
 	global_sync_flag = timemgr_data + SIM_GLOBAL_SYNC_FLAG_OFFSET;
 	trace_recs_end_sim = timemgr_data + SIM_TRACE_RECS_END_SIM_OFFSET;
-
 	return 0;
 }
 
