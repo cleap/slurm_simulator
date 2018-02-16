@@ -156,8 +156,11 @@ typedef struct connection {
 volatile simulator_event_t *head_simulator_event;
 volatile simulator_event_t *head_sim_completed_jobs;
 int    total_sim_events = 0;
-char   SEM_NAME[]       = "serversem";
-sem_t* mutexserver      = SEM_FAILED;
+//char   SEM_NAME[]       = "serversem";
+//sem_t* mutexserver      = SEM_FAILED;
+sem_t *sim_sem		= SEM_FAILED;
+sem_t *slurm_sem	= SEM_FAILED;
+
 #endif
 
 pthread_mutex_t simulator_mutex  = PTHREAD_MUTEX_INITIALIZER;
@@ -212,18 +215,28 @@ static void      _wait_for_all_threads(int secs);
 int
 open_global_sync_sem() {
         int iter = 0;
-        while(mutexserver == SEM_FAILED && iter < 10) {
-                mutexserver = sem_open(SEM_NAME,0,0644,0);
-                if(mutexserver == SEM_FAILED) sleep(1);
+	char sim_sem_name[100], slurm_sem_name[100];
+	get_semaphores_names(sim_sem_name, slurm_sem_name);
+        while(sim_sem == SEM_FAILED && iter < 10) {
+                sim_sem = sem_open(sim_sem_name,0,0644,0);
+                if(sim_sem == SEM_FAILED) sleep(1);
+                ++iter;
+        }
+	iter = 0;
+	while(slurm_sem == SEM_FAILED && iter < 10) {
+                slurm_sem = sem_open(slurm_sem_name,0,0644,0);
+                if(slurm_sem == SEM_FAILED) sleep(1);
                 ++iter;
         }
 
-        if(mutexserver == SEM_FAILED)
+        if(sim_sem == SEM_FAILED)
                 return -1;
-        else
+        else if (slurm_sem == SEM_FAILED)
+		return -1;
+	else
                 return 0;
 }
-
+/*
 void
 perform_global_sync() {
         while(1) {
@@ -243,10 +256,11 @@ void perform_global_sync_end()
         *global_sync_flag += 1;
         sem_post(mutexserver);
 }
-
+*/
 void
 close_global_sync_sem() {
-        if(mutexserver != SEM_FAILED) sem_close(mutexserver);
+	if (sim_sem != SEM_FAILED)	sem_close(sim_sem);
+	if (slurm_sem != SEM_FAILED)	sem_close(slurm_sem);
 }
 #endif
 int
@@ -645,7 +659,8 @@ _simulator_helper(void *arg)
 	now = 0;
 	info("SIM: Simulator Helper starting...\n");
 	while (!_shutdown) {
-		perform_global_sync();
+		sem_wait(slurm_sem);
+		//perform_global_sync();
 		jobs_ended = 0;
 		now = time(NULL);
 		info("now: %ld last: %ld diff: %ld", now, last, now - last);
@@ -687,9 +702,7 @@ _simulator_helper(void *arg)
 		} else {
 			_send_sim_helper_cycle_msg(0);
 		}
-
-		perform_global_sync_end();
-
+		sem_post(sim_sem);
 	}
 	info("SIM: Simulator Helper finishing...");
 

@@ -56,9 +56,6 @@ char  daemon2[1024];
 char  default_sim_daemons_path[] = "/sbin";
 char* sim_daemons_path = NULL;
 
-char SEM_NAME[] = "serversem";
-sem_t* mutexserver;
-
 static pid_t pid[2] = {-1, -1};
 static int launch_daemons = 0;
 char** envs;
@@ -116,6 +113,8 @@ uid_t userIdFromName(const char *name, gid_t* gid); /* function to get uid from 
 void  displayJobTraceT(job_trace_t* rptr);
 #endif
 
+sem_t *sim_sem;
+sem_t *slurm_sem;
 
 int workflow_count = 0;
 /* Management of the control on the job ids (trace vs. real)*/
@@ -258,14 +257,17 @@ void
 terminate_simulation(int signum) {
 
 	int i;
-
+	char sim_sem_name[100], slurm_sem_name[100];
+        get_semaphores_names(sim_sem_name, slurm_sem_name);
 	dumping_shared_mem();
 
-	sem_close(mutexserver);
-	sem_unlink(SEM_NAME);
+	sem_close(sim_sem);
+	sem_unlink(sim_sem_name);
+	sem_close(slurm_sem);
+	sem_unlink(slurm_sem_name);
 
 	slurm_shutdown(0); /* 0-shutdown all daemons without a core file */
-
+	sleep(3);
 	if(signum == SIGINT)
 		exit(0);
 
@@ -427,7 +429,10 @@ printf("Done waiting.\n");
 		}
 
 		/* Synchronization with daemons */
-		sem_wait(mutexserver);
+		sem_post(slurm_sem);
+		sem_wait(sim_sem);
+
+/*		sem_wait(mutexserver);
 		debug3("unlocking next loop");
 		*global_sync_flag = 1;
 		sem_post(mutexserver);
@@ -440,6 +445,7 @@ printf("Done waiting.\n");
 			sem_post(mutexserver);
                 	usleep(sync_loop_wait_time);
 		}
+*/
 		/*
 		 * Time throttling added but currently unstable; for now, run
 		 * with only 1 second intervals
@@ -825,12 +831,20 @@ printf("Reading filename %s for execution at %ld\n",
 
 int
 open_global_sync_semaphore() {
-	mutexserver = sem_open(SEM_NAME, O_CREAT, 0644, 1);
-	if(mutexserver == SEM_FAILED) {
-		perror("unable to create server semaphore");
-		sem_unlink(SEM_NAME);
+	char sim_sem_name[100], slurm_sem_name[100];
+	get_semaphores_names(sim_sem_name, slurm_sem_name);
+	sim_sem = sem_open(sim_sem_name, O_CREAT, 0644, 0);
+	if(sim_sem == SEM_FAILED) {
+		perror("unable to create simulation semaphore");
+		sem_unlink(sim_sem_name);
 		return -1;
 	}
+	slurm_sem = sem_open(slurm_sem_name, O_CREAT, 0644, 0);
+        if(slurm_sem == SEM_FAILED) {
+                perror("unable to create slurm semaphore");
+                sem_unlink(slurm_sem_name);
+                return -1;
+        }
 
 	return 0;
 }

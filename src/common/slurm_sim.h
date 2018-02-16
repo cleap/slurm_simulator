@@ -4,6 +4,8 @@
 #ifdef SLURM_SIMULATOR
 
 #define SLURM_SIM_SHM "/tester_slurm_sim.shm"
+#define SLURM_SEM_NAME "slurmsem"
+#define SIM_SEM_NAME "simsem"
 
 /* Offsets */
 #define SIM_SECONDS_OFFSET           0
@@ -20,9 +22,6 @@ int          * slurmctl_pid;
 int          * slurmd_pid;
 char         * global_sync_flag;
 int          * trace_recs_end_sim;
-
-extern char           SEM_NAME[];
-extern sem_t*         mutexserver;
 
 //extern int total_log_jobs; /* ANA: global variable shared between sim_mgr and controller to help end simulation when all jobs have finished */ 
 //extern bool terminate_simulation_from_ctr; /* ANA: it will be read by sim_mgr in order to terminate simulation when all jobs have finished. */

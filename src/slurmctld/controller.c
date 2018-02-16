@@ -208,8 +208,10 @@ static int      job_sched_cnt = 0;
 FILE *stats = NULL;
 
 #ifdef SLURM_SIMULATOR
-char SEM_NAME[]		= "serversem";
-sem_t* mutexserver	= SEM_FAILED;
+//char SEM_NAME[]		= "serversem";
+//sem_t* mutexserver	= SEM_FAILED;
+sem_t *sim_sem          = SEM_FAILED;
+sem_t *slurm_sem        = SEM_FAILED;
 int total_log_jobs=0;
 //bool terminate_simulation_from_ctr=0; /* ANA: it will be read by sim_mgr in order to terminate simulation when all jobs have finished. */
 #endif
@@ -905,20 +907,31 @@ static void _sig_handler(int signal)
 int
 open_global_sync_sem() {
         int iter = 0;
-        while (mutexserver == SEM_FAILED && iter < 10) {
-                mutexserver = sem_open(SEM_NAME, 0, 0644, 0);
-                if(mutexserver == SEM_FAILED) sleep(1);
+        char sim_sem_name[100], slurm_sem_name[100];
+        get_semaphores_names(sim_sem_name, slurm_sem_name);
+        while(sim_sem == SEM_FAILED && iter < 10) {
+                sim_sem = sem_open(sim_sem_name,0,0644,0);
+                if(sim_sem == SEM_FAILED) sleep(1);
+                ++iter;
+        }
+        iter = 0;
+        while(slurm_sem == SEM_FAILED && iter < 10) {
+                slurm_sem = sem_open(slurm_sem_name,0,0644,0);
+                if(slurm_sem == SEM_FAILED) sleep(1);
                 ++iter;
         }
 
-        if(mutexserver == SEM_FAILED)
+        if(sim_sem == SEM_FAILED)
+                return -1;
+        else if (slurm_sem == SEM_FAILED)
                 return -1;
         else
                 return 0;
 }
-
+/*
 void
 perform_global_sync() {
+*/
 /*        while(1) {
 		sem_wait(mutexserver);
 		if (*global_sync_flag == 3) {
@@ -930,14 +943,16 @@ perform_global_sync() {
                 usleep(100000);
         }
 */
-        sem_wait(mutexserver);
+/*        sem_wait(mutexserver);
         debug3("Finished with slurmctld");
         *global_sync_flag += 1;
         sem_post(mutexserver);
 }
+*/
 void
 close_global_sync_sem() {
-        if(mutexserver != SEM_FAILED) sem_close(mutexserver);
+	if (sim_sem != SEM_FAILED)      sem_close(sim_sem);
+	if (slurm_sem != SEM_FAILED)    sem_close(slurm_sem);
 }
 #endif
 
@@ -1139,8 +1154,9 @@ void *_service_connection(void *arg)
 cleanup:
 	xfree(arg);
 	_free_server_thread();
-	if (msg->msg_type == MESSAGE_SIM_HELPER_CYCLE)
-		perform_global_sync(); /* st on 20151020 */
+//	if (msg->msg_type == MESSAGE_SIM_HELPER_CYCLE)
+		//perform_global_sync(); /* st on 20151020 */
+//		sem_post(sim_sem);
 	slurm_free_msg(msg);
 	pthread_exit(NULL);
 	return return_code;
