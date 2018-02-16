@@ -216,6 +216,10 @@ extern int   sched_interval;
 extern bool  slurmctld_init_db;
 extern int   slurmctld_primary;
 
+#ifdef SLURM_SIMULATOR
+extern int backfill_interval;
+#endif
+
 /*****************************************************************************\
  *  NODE parameters and data structures, mostly in src/common/node_conf.h
 \*****************************************************************************/

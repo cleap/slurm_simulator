@@ -211,6 +211,7 @@ FILE *stats = NULL;
 char SEM_NAME[]		= "serversem";
 sem_t* mutexserver	= SEM_FAILED;
 int total_log_jobs=0;
+int backfill_interval=30;
 //bool terminate_simulation_from_ctr=0; /* ANA: it will be read by sim_mgr in order to terminate simulation when all jobs have finished. */
 #endif
 
