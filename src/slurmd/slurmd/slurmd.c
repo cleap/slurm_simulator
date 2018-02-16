@@ -40,6 +40,8 @@
  *  with SLURM; if not, write to the Free Software Foundation, Inc.,
  *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA.
 \*****************************************************************************/
+#define _GNU_SOURCE
+#include <stdio.h>
 
 #if HAVE_CONFIG_H
 #  include "config.h"
@@ -185,6 +187,7 @@ static void      _msg_engine(void);
 #ifdef SLURM_SIMULATOR
 static void     *_simulator_helper(void *arg);
 static void      _spawn_simulator_helper(void);
+static int 	signal_sim_mgr();
 #endif
 static void      _print_conf(void);
 static void      _print_config(void);
@@ -524,17 +527,21 @@ _registration_engine(void *arg)
 
 #ifdef SLURM_SIMULATOR
 /* send signal to sim_mgr to continue */
-int signal_sim_mgr(){
+static int signal_sim_mgr(){
 
 	pid_t pid_sim_mgr;
 	char output[10];
-	FILE *cmd = popen("pidof -s sim_mgr", "r");
+	char *command;
+	asprintf(&command, "pidof -s %s/sim_mgr", getenv("SIM_MGR_PATH"));
+	FILE *cmd = popen(command, "r");
 
 	fgets(output, 10, cmd);
 	pid_sim_mgr = strtoul(output, NULL, 10);
-	debug("SIM_MGR_PID: %lu\n", pid_sim_mgr);
+//	pid_sim_mgr = getppid(); //not working
+	debug("SIM_MGR_PID: %lu\n, command: %s", pid_sim_mgr, command);
 	kill(pid_sim_mgr, SIGUSR2);
 	pclose(cmd);
+	free(command);
 	return 0;
 }
 
