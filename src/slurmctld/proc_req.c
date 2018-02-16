@@ -4847,7 +4847,7 @@ _slurm_rpc_dump_licenses(slurm_msg_t * msg)
 	 */
 }
 
-
+#ifdef SLURM_SIMULATOR
 
 char BF_SEM_NAME[] = "bf_sem";
 char BF_DONE_SEM_NAME[] = "bf_done_sem";
@@ -4922,7 +4922,8 @@ static void _slurm_rpc_sim_helper_cycle(slurm_msg_t * msg)
         	last_helper_schedule_time=current_time;
         }
         if (last_helper_backfill_time==0 ||
-        	(current_time-last_helper_backfill_time)>HELPER_BACKFILL_PERIOD_S) {
+        	/*(current_time-last_helper_backfill_time)>HELPER_BACKFILL_PERIOD_S) {*/
+        	(current_time-last_helper_backfill_time)>backfill_interval) {
         	info("unlocking backfill");
 		do_backfill();
         	last_helper_backfill_time=current_time;
@@ -4930,3 +4931,4 @@ static void _slurm_rpc_sim_helper_cycle(slurm_msg_t * msg)
 
         slurm_send_rc_msg(msg, SLURM_SUCCESS);
 }
+#endif

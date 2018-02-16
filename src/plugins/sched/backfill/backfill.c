@@ -141,7 +141,9 @@ static pthread_mutex_t term_lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t  term_cond = PTHREAD_COND_INITIALIZER;
 static bool config_flag = false;
 static uint32_t debug_flags = 0;
+#ifndef SLURM_SIMULATOR
 static int backfill_interval = BACKFILL_INTERVAL;
+#endif
 static int backfill_queue_limit = BACKFILL_QUEUE_LIMIT;
 static int backfill_resolution = BACKFILL_RESOLUTION;
 static int backfill_window = BACKFILL_WINDOW;

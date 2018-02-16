@@ -213,6 +213,7 @@ FILE *stats = NULL;
 sem_t *sim_sem          = SEM_FAILED;
 sem_t *slurm_sem        = SEM_FAILED;
 int total_log_jobs=0;
+int backfill_interval=30;
 //bool terminate_simulation_from_ctr=0; /* ANA: it will be read by sim_mgr in order to terminate simulation when all jobs have finished. */
 #endif
 
