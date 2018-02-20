@@ -620,7 +620,7 @@ _send_sim_helper_cycle_msg(uint32_t jobs_count)
        info("SIM: sending MESSAGE_SIM_HELPER_CYCLE");
 
        /* Note: these log messages don't go to slurmd.log from here */
-       for (i=0; i<=5; i++) {
+       for (i=0; ; i++) {
                struct timespec waiting;
 
                if (slurm_send_recv_controller_rc_msg(&req_msg, &rc) == 0)
