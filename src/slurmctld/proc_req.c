@@ -1803,9 +1803,6 @@ static void _slurm_rpc_complete_batch_script(slurm_msg_t * msg)
 #endif
 	/* init */
 	START_TIMER;
-	pthread_mutex_lock(&lock_finishing_jobs);
-	total_finished_jobs+=1;
-	pthread_mutex_unlock(&lock_finishing_jobs);
 	debug2("Processing RPC: REQUEST_COMPLETE_BATCH_SCRIPT from "
 	       "uid=%u JobId=%u",
 	       uid, comp_msg->job_id);
@@ -1958,6 +1955,10 @@ static void _slurm_rpc_complete_batch_script(slurm_msg_t * msg)
 	pthread_mutex_unlock(&lock_remaining_epilogs);
 	i = job_complete(comp_msg->job_id, uid, job_requeue, false,
 			 comp_msg->job_rc);
+	pthread_mutex_lock(&lock_finishing_jobs);
+        total_finished_jobs+=1;
+        pthread_mutex_unlock(&lock_finishing_jobs);
+
 	error_code = MAX(error_code, i);
 	unlock_slurmctld(job_write_lock);
 	_throttle_fini(&active_rpc_cnt);
@@ -4912,7 +4913,7 @@ static void _slurm_rpc_sim_helper_cycle(slurm_msg_t * msg)
 	}
 	while (1) {
 		pthread_mutex_lock(&lock_finishing_jobs);
-		if (total_finished_jobs < helper_msg->total_jobs_ended) {
+		if (total_finished_jobs == helper_msg->total_jobs_ended) {
 			pthread_mutex_unlock(&lock_finishing_jobs);
 			break;
 		}
@@ -4947,11 +4948,9 @@ static void _slurm_rpc_sim_helper_cycle(slurm_msg_t * msg)
         if (last_helper_backfill_time==0 ||
         	/*(current_time-last_helper_backfill_time)>HELPER_BACKFILL_PERIOD_S) {*/
         	(current_time-last_helper_backfill_time)>backfill_interval) {
-        	info("unlocking backfill");
 		do_backfill();
         	last_helper_backfill_time=current_time;
         }
-
         slurm_send_rc_msg(msg, SLURM_SUCCESS);
 }
 #endif
