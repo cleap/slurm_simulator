@@ -12,7 +12,7 @@
 #include <fcntl.h>     /* O_RDWR */
 #include <getopt.h>    /* getopt_long call */
 
-//#include "src/common/sim_funcs.h"
+#include "src/common/sim_funcs.h"
 
 #define SLURM_SIM_SHM "/tester_slurm_sim.shm"
 
