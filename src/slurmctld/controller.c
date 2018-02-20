@@ -116,6 +116,7 @@
 #include <semaphore.h>
 #include <pthread.h>
 #include "src/common/slurm_sim.h"
+#include "src/common/sim_funcs.h"
 #endif
 
 
@@ -1679,7 +1680,7 @@ static void *_slurmctld_background(void *no_data)
 			load_part_uid_allow_list(group_force);
 			unlock_slurmctld(part_write_lock);
 		}
-
+#ifndef SLURM_SIMULATOR
 		if (difftime(now, last_purge_job_time) >= purge_job_interval) {
 			now = time(NULL);
 			last_purge_job_time = now;
@@ -1688,7 +1689,7 @@ static void *_slurmctld_background(void *no_data)
 			purge_old_job();
 			unlock_slurmctld(job_write_lock);
 		}
-
+#endif
 		job_limit = NO_VAL;
 #ifndef SLURM_SIMULATOR
 		if (difftime(now, last_full_sched_time) >= sched_interval) {
