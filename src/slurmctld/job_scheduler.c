@@ -1012,11 +1012,13 @@ next_part:			part_ptr = (struct part_record *)
 		}
 		if (job_ptr->preempt_in_progress)
 			continue;	/* scheduled in another partition */
+		/*Marco: scheduler just take 1 second in simulation */
+#ifndef SLURM_SIMULATOR
 		if ((time(NULL) - sched_start) >= sched_timeout) {
 			debug("sched: loop taking too long, breaking out");
 			break;
 		}
-
+#endif
 		if (job_ptr->array_task_id != NO_VAL) {
 			if ((reject_array_job_id == job_ptr->array_job_id) &&
 			    (reject_array_part   == job_ptr->part_ptr)) {
