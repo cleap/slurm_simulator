@@ -122,6 +122,7 @@
 #ifdef SLURM_SIMULATOR
 #include "sim_events.h"
 #include "src/common/slurm_sim.h"
+#include "src/common/sim_funcs.h"
 #endif
 
 #define GETOPT_ARGS	"cCd:Df:hL:Mn:N:vV"
