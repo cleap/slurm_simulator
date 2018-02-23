@@ -672,7 +672,7 @@ extern void *backfill_agent(void *args)
 	last_backfill_time = time(NULL);
 #ifdef SLURM_SIMULATOR
 	open_BF_sync_semaphore_pg();
-	backfill_interval=2;
+	//backfill_interval=2;
 #endif
 	while (!stop_backfill) {
 #ifdef SLURM_SIMULATOR
@@ -699,7 +699,7 @@ extern void *backfill_agent(void *args)
 		}
 #endif
 #ifdef SLURM_SIMULATOR
-                debug("backfill: now %e, last_backfill_time %e, wait_time %e, backfill_interval %d, job_is_completing %d, many_pending_rpcs %d, !avail_front_end %d, !more_work %d", now, last_backfill_time, wait_time, backfill_interval, _job_is_completing(), _many_pending_rpcs(), !avail_front_end(NULL), !_more_work(last_backfill_time));
+                debug("backfill: now %lu, last_backfill_time %lu, wait_time %.1f, backfill_interval %d, job_is_completing %d, many_pending_rpcs %d, !avail_front_end %d, !more_work %d", (long int) now, (long int)last_backfill_time, wait_time, backfill_interval, _job_is_completing(), _many_pending_rpcs(), !avail_front_end(NULL), !_more_work(last_backfill_time));
                 if (!((wait_time < backfill_interval) ||
                     _job_is_completing() || _many_pending_rpcs() ||
                     !avail_front_end(NULL) || !_more_work(last_backfill_time))) {
@@ -773,9 +773,9 @@ static int _attempt_backfill(void)
 	uint32_t *uid = NULL, nuser = 0, bf_parts = 0, *bf_part_jobs = NULL;
 	uint16_t *njobs = NULL;
 	bool already_counted;
-#ifdef SLURM_SIMULATOR
-       int local_loops;
-#endif
+//#ifdef SLURM_SIMULATOR
+//       int local_loops;
+//#endif
 	uint32_t reject_array_job_id = 0;
 	struct part_record *reject_array_part = NULL;
 	uint32_t job_start_cnt = 0, start_time;
@@ -882,6 +882,7 @@ static int _attempt_backfill(void)
                 /**********************************************************/
 		if (slurmctld_config.shutdown_time)
 			break;
+#ifndef SLURM_SIMULATOR
 		if (((defer_rpc_cnt > 0) &&
 		     (slurmctld_config.server_thread_count >= defer_rpc_cnt)) ||
 		    ((time(NULL) - sched_start) >= sched_timeout)) {
@@ -914,6 +915,7 @@ static int _attempt_backfill(void)
 			job_test_count = 0;
 			START_TIMER;
 		}
+#endif
 		job_ptr  = job_queue_rec->job_ptr;
 		/* With bf_continue configured, the original job could have
 		 * been cancelled and purged. Validate pointer here. */
@@ -1081,13 +1083,15 @@ static int _attempt_backfill(void)
  TRY_LATER:
 		if (slurmctld_config.shutdown_time)
 			break;
+//Marco: jump yield locks, bf is called after processing other RPCs and it 
+//last one simulated second
 #ifndef SLURM_SIMULATOR
 		if (((defer_rpc_cnt > 0) &&
 		     (slurmctld_config.server_thread_count >= defer_rpc_cnt)) ||
 		    ((time(NULL) - sched_start) >= sched_timeout)) {
-#else
-			if (local_loops == 20) {
-#endif
+//#else
+//			if (local_loops == 20) {
+//#endif
 			uint32_t save_job_id = job_ptr->job_id;
 			uint32_t save_time_limit = job_ptr->time_limit;
 			job_ptr->time_limit = orig_time_limit;
@@ -1111,9 +1115,9 @@ static int _attempt_backfill(void)
 				rc = 1;
 				break;
 			}
-#ifdef SLURM_SIMULATOR
-                       local_loops = 0;
-#endif
+//#ifdef SLURM_SIMULATOR
+//                       local_loops = 0;
+//#endif
 			/* cg_node_bitmap may be changed */
 			bit_copybits(non_cg_bitmap, cg_node_bitmap);
 			bit_not(non_cg_bitmap);
@@ -1135,8 +1139,8 @@ static int _attempt_backfill(void)
 			job_test_count = 1;
 			START_TIMER;
 		}
-#ifdef SLURM_SIMULATOR
-               local_loops++;
+//#ifdef SLURM_SIMULATOR
+//               local_loops++;
 #endif
 		FREE_NULL_BITMAP(avail_bitmap);
 		FREE_NULL_BITMAP(exc_core_bitmap);
@@ -1196,6 +1200,7 @@ static int _attempt_backfill(void)
 		     (!bit_super_set(job_ptr->details->req_node_bitmap,
 				     avail_bitmap))) ||
 		    (job_req_node_filter(job_ptr, avail_bitmap))) {
+//Marco: why this has been altered?
 #ifndef SLURM_SIMULATOR
 			if (later_start) {
 				job_ptr->start_time = 0;
@@ -1326,6 +1331,7 @@ static int _attempt_backfill(void)
 			      backfill_resolution;
 		end_reserve = (end_reserve / backfill_resolution) *
 			      backfill_resolution;
+//Marco: why this has been altered?
 #ifndef SLURM_SIMULATOR
 		if (later_start && (start_time > later_start)) {
 			/* Try later when some nodes currently reserved for
@@ -1351,6 +1357,7 @@ static int _attempt_backfill(void)
 			break;
 		}
 
+//Marco: why this has been altered?
 #ifndef SLURM_SIMULATOR
 		if ((job_ptr->start_time > now) &&
 		    _test_resv_overlap(node_space, avail_bitmap,
@@ -1512,8 +1519,7 @@ static bool _more_work (time_t last_backfill_time)
 		rc = true;
 	}
 	pthread_mutex_unlock( &thread_flag_mutex );
-	if(rc)
-	debug2("last bf %d, last job update %d, last node update %d, last part update %d", last_backfill_time, last_job_update, last_node_update, last_part_update);
+	if(rc) debug("last bf %d, last job update %d, last node update %d, last part update %d", last_backfill_time, last_job_update, last_node_update, last_part_update);
 	return rc;
 }
 
