@@ -98,7 +98,7 @@ int main(int argc, char* argv[])
 		uint32_t n;
                 printf("End time: %s\n", p);
                 sscanf(p, "%"SCNu32, &n);
-                job_arr[idx].duration = (uint32_t) n - start_time; 
+                job_arr[idx].duration = (uint32_t) n; 
 		swf_job_arr[idx].run_time = job_arr[idx].duration;
 	    }
 	    if (i == 4)
@@ -190,7 +190,7 @@ int main(int argc, char* argv[])
                 printf("Error! Zero bytes written.\n");
         	++errs;
         }
-	fprintf(swf_fp, "%d\t%ld\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\n",swf_job_arr[j].job_num,
+	fprintf(swf_fp, "%d\t%ld\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\n",swf_job_arr[j].job_num,
 				swf_job_arr[j].sub_time,
 				swf_job_arr[j].wait_time,
 				swf_job_arr[j].run_time,

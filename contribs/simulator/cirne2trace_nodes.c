@@ -180,7 +180,7 @@ int main(int argc, char* argv[])
                         printf("Error! Zero bytes written.\n");
                         ++errs;
               }
-	fprintf(swf_fp, "%d\t%ld\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\n",swf_job_arr[j].job_num,
+	fprintf(swf_fp, "%d\t%ld\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\n",swf_job_arr[j].job_num,
                                 swf_job_arr[j].sub_time,
                                 swf_job_arr[j].wait_time,
                                 swf_job_arr[j].run_time,
