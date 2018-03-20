@@ -1,5 +1,6 @@
 //#ifdef SLURM_SIMULATOR
 #include <stdlib.h>
+#include <inttypes.h>
 #include <stdio.h>
 #include <unistd.h>
 #include <math.h>
@@ -7,35 +8,11 @@
 #include <semaphore.h>
 #include <fcntl.h>
 
+#include "sim_trace.h"
 
-#define MAX_USERNAME_LEN 30
-#define MAX_RSVNAME_LEN  30
-#define MAX_QOSNAME      30
-#define TIMESPEC_LEN     30
-#define MAX_RSVNAME      30
 #define CPUS_PER_NODE     8
-#define MAX_WF_FILENAME_LEN     1024
-static const char DEFAULT_OFILE[]    = "simple.trace"; //The output trace name should be passed as an argument on command line.
-#define MAX_DEPNAME              1024
 
-typedef struct job_trace {
-    int  job_id;
-    char username[MAX_USERNAME_LEN];
-    long int submit; /* relative or absolute? */
-    int  duration;
-    int  wclimit; /*in minutes!*/
-    int  tasks;
-    char qosname[MAX_QOSNAME];
-    char partition[MAX_QOSNAME];
-    char account[MAX_QOSNAME];
-    int  cpus_per_task;
-    int  tasks_per_node;
-    char reservation[MAX_RSVNAME];
-    char dependency[MAX_DEPNAME];
-    struct job_trace *next;
-    char manifest_filename[MAX_WF_FILENAME_LEN];
-    char *manifest;
-} job_trace_t;
+static const char DEFAULT_OFILE[]    = "simple.trace"; //The output trace name should be passed as an argument on command line.
 
 typedef struct swf_job_trace {
     int job_num;
@@ -136,7 +113,9 @@ int main(int argc, char* argv[])
 	    }
             else if(i==8) {
 		printf("End time: %s\n", p);
-		job_arr[idx].duration = (long) atol(p) - start_time;
+		uint32_t n;
+		sscanf(p, "%"SCNu32, &n);
+		job_arr[idx].duration = (uint32_t) n - start_time;
 		swf_job_arr[idx].run_time = job_arr[idx].duration;
 		swf_job_arr[idx].wait_time = (long) start_time - swf_job_arr[idx].sub_time - first_arrival + 100;
 		printf("Duration: %d\n", job_arr[idx].duration);
