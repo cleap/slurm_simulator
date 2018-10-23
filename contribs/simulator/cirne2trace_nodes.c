@@ -116,6 +116,8 @@ int main(int argc, char* argv[])
 		uint32_t n;
 		sscanf(p, "%"SCNu32, &n);
 		job_arr[idx].duration = (uint32_t) n - start_time;
+		if (job_arr[idx].duration == 0)
+			job_arr[idx].duration = 1;
 		swf_job_arr[idx].run_time = job_arr[idx].duration;
 		swf_job_arr[idx].wait_time = (long) start_time - swf_job_arr[idx].sub_time - first_arrival + 100;
 		printf("Duration: %d\n", job_arr[idx].duration);
