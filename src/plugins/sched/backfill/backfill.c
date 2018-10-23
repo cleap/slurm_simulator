@@ -1201,13 +1201,12 @@ static int _attempt_backfill(void)
 				     avail_bitmap))) ||
 		    (job_req_node_filter(job_ptr, avail_bitmap))) {
 //Marco: why this has been altered?
-#ifndef SLURM_SIMULATOR
+//#ifndef SLURM_SIMULATOR
 			if (later_start) {
 				job_ptr->start_time = 0;
 				goto TRY_LATER;
 			}
-#endif
-
+//#endif
 			/* Job can not start until too far in the future */
 			job_ptr->time_limit = orig_time_limit;
 			job_ptr->start_time = sched_start + backfill_window;
@@ -1332,15 +1331,14 @@ static int _attempt_backfill(void)
 		end_reserve = (end_reserve / backfill_resolution) *
 			      backfill_resolution;
 //Marco: why this has been altered?
-#ifndef SLURM_SIMULATOR
+//#ifndef SLURM_SIMULATOR
 		if (later_start && (start_time > later_start)) {
 			/* Try later when some nodes currently reserved for
 			 * pending jobs are free */
 			job_ptr->start_time = 0;
 			goto TRY_LATER;
 		}
-#endif
-
+//#endif
 		if (job_ptr->start_time > (sched_start + backfill_window)) {
 			/* Starts too far in the future to worry about */
 			if (debug_flags & DEBUG_FLAG_BACKFILL)
@@ -1358,7 +1356,7 @@ static int _attempt_backfill(void)
 		}
 
 //Marco: why this has been altered?
-#ifndef SLURM_SIMULATOR
+//#ifndef SLURM_SIMULATOR
 		if ((job_ptr->start_time > now) &&
 		    _test_resv_overlap(node_space, avail_bitmap,
 				       start_time, end_reserve)) {
@@ -1369,8 +1367,7 @@ static int _attempt_backfill(void)
 			job_ptr->start_time = 0;
 			goto TRY_LATER;
 		}
-#endif
-
+//#endif
 		/*
 		 * Add reservation to scheduling table if appropriate
 		 */
