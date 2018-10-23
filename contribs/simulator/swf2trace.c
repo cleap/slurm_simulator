@@ -7,10 +7,11 @@
 #include <string.h>
 #include <semaphore.h>
 #include <fcntl.h>
+#include <limits.h>
 
 #include "sim_trace.h"
 
-#define CPUS_PER_NODE    8 
+#define CPUS_PER_NODE    16
 static const char DEFAULT_OFILE[]    = "simple.trace"; //The output trace name should be passed as an argument on command line.
 
 typedef struct swf_job_trace {
@@ -60,7 +61,7 @@ int main(int argc, char* argv[])
     if (!job_arr) {
                 printf("Error.  Unable to allocate memory for all job records.\n");
                 return -1;
-    }
+	    }
     swf_job_arr = (swf_job_trace_t *)malloc(sizeof(swf_job_trace_t) * nrecs);
     if (!swf_job_arr) {
                 printf("Error.  Unable to allocate memory for all job records.\n");
@@ -71,7 +72,7 @@ int main(int argc, char* argv[])
     while (fgets(line, sizeof(line), file)) {
         /* note that fgets don't strip the terminating \n, checking its
            presence would allow to handle lines longer that sizeof(line) */
-        printf("%s", line);
+        //printf("%s", line);
         if(strncmp(line, "#", 1) == 0)
                 continue;
         if(strncmp(line, ";", 1) == 0)
@@ -82,64 +83,72 @@ int main(int argc, char* argv[])
 	    if(i==0) {
 		job_arr[idx].job_id = ++job_index; 
 		swf_job_arr[idx].job_num = job_arr[idx].job_id;
-		printf("Index is: %d", job_index); 
+	//	printf("Index is: %d", job_index); 
 	    }   
             if(i==1) {
-		printf("%s", p);
+	//	printf("%s", p);
 		job_arr[idx].submit = 100 + atol(p);
 		swf_job_arr[idx].sub_time = job_arr[idx].submit;
 	    }  // why submit cannot start from 0? 
             if(i==2) {
-                printf("%s", p);
-                swf_job_arr[idx].wait_time = atoi(p);
+          //      printf("%s", p);
+                swf_job_arr[idx].wait_time = atol(p);
             }
             if(i==3) {
-		printf("%s", p);
+	//	printf("%s", p);
 		uint32_t n;
-                printf("End time: %s\n", p);
+        //        printf("End time: %s\n", p);
                 sscanf(p, "%"SCNu32, &n);
                 job_arr[idx].duration = (uint32_t) n; 
 		swf_job_arr[idx].run_time = job_arr[idx].duration;
 	    }
-	    if (i == 4)
-		swf_job_arr[idx].alloc_cpus = -1;//atoi(p); ater adapting to CPUS_PER_NODE this would differ
+	   // if (i == 4)
+	//	swf_job_arr[idx].alloc_cpus = -1;//atoi(p); ater adapting to CPUS_PER_NODE this would differ
             if (i == 5)
-                swf_job_arr[idx].avg_cpu_time = atoi(p); //this too
+                swf_job_arr[idx].avg_cpu_time = atol(p); //this too
             if (i == 6)
-                swf_job_arr[idx].mem = atoi(p); //actually not simulated
-            if(i==7) {
-		printf("%s", p);
-		job_arr[idx].tasks = ceil((float)atoi(p)/CPUS_PER_NODE); 
+                swf_job_arr[idx].mem = atol(p); //actually not simulated
+            if (i == 4) { //use req cpus (4) instead of allocated (7)
+		swf_job_arr[idx].alloc_cpus = -1;//atoi(p); ater adapting to CPUS_PER_NODE this would differ
+		//printf("%s", p);
+		job_arr[idx].tasks = ceil((float)atol(p)/CPUS_PER_NODE); 
 		swf_job_arr[idx].req_cpus = job_arr[idx].tasks * CPUS_PER_NODE; //round to full node
-		printf("Number of tasks %d, number of CPUs %d", job_arr[idx].tasks, swf_job_arr[idx].req_cpus);
+	//	printf("Number of tasks %d, number of CPUs %d", job_arr[idx].tasks, swf_job_arr[idx].req_cpus);
 	    }
             if(i==8) {
-		printf("%s", p);
-		job_arr[idx].wclimit = ceil((double)atoi(p) / 60.0f);
+		printf("%s\n", p);
+		long wclim = atol(p);
+		wclim = ceil((double)wclim / 60.0f);
+		if (wclim >= INT_MAX) {
+			job_arr[idx].wclimit = INT_MAX;
+			printf("wclimit too high!\n");
+		}
+		else 
+			job_arr[idx].wclimit = wclim;
 		swf_job_arr[idx].req_time = job_arr[idx].wclimit * 60; //round to minutes
 	    }
 	    if (i == 9)
-                swf_job_arr[idx].req_mem = atoi(p);
+                swf_job_arr[idx].req_mem = atol(p);
             if (i == 10) //i copy the status, but we only support completed jobs
-                swf_job_arr[idx].status = atoi(p);
+                swf_job_arr[idx].status = atol(p);
             if (i == 11) //not using this, single user
-                swf_job_arr[idx].uid = atoi(p);
+                swf_job_arr[idx].uid = atol(p);
 	    if (i == 12)
-                swf_job_arr[idx].gid = atoi(p);
+                swf_job_arr[idx].gid = atol(p);
             if (i == 13)
-                swf_job_arr[idx].app_num = atoi(p);
+                swf_job_arr[idx].app_num = atol(p);
             if (i == 14)
-                swf_job_arr[idx].queue_num = atoi(p);
+                swf_job_arr[idx].queue_num = atol(p);
 	    if (i == 15)
-                swf_job_arr[idx].part_num = atoi(p);
+                swf_job_arr[idx].part_num = atol(p);
             if (i == 16)
-                swf_job_arr[idx].prev_job_num = atoi(p);
+                swf_job_arr[idx].prev_job_num = atol(p);
             if (i == 17)
-                swf_job_arr[idx].think_time_prev_job = atoi(p);
+                swf_job_arr[idx].think_time_prev_job = atol(p);
             //if(i==11) { printf("%s", p); strcpy(job_arr[idx].username, p); }   
             //if(i==12) { printf("%s", p); strcpy(job_arr[idx].account, p); }   
             //if(i==15) { printf("%s", p); strcpy(job_arr[idx].partition, p); }   
-            printf(" %s\n", p);
+          //  printf(" %s\n", p);
             p = strtok(NULL," ");
             i++;
         }
@@ -159,12 +168,24 @@ int main(int argc, char* argv[])
         strcpy(job_arr[idx].account, "1000");
         //strcpy(job_trace->manifest_filename, "|\0");
         //job_trace->manifest=NULL;
-        if((job_arr[idx].wclimit * 60)> job_arr[idx].duration ){
-          idx++;
-          counter++;
-        } 
-	else
-	  printf("duration greater than wclimit! %d\n", job_arr[idx].job_id);
+	if (job_arr[idx].wclimit <= 0) {
+	  printf("%ld: wclimit <= 0!\n", job_arr[idx].job_id);
+	  job_arr[idx].wclimit = job_arr[idx].duration;
+	  swf_job_arr[idx].req_time = job_arr[idx].wclimit * 60; 
+	}
+        if((double)(job_arr[idx].wclimit * 60) < job_arr[idx].duration ){
+	  printf("%ld: duration greater than wclimit! (%d > %ld)\n", job_arr[idx].job_id, job_arr[idx].duration, job_arr[idx].wclimit * 60);
+	  job_arr[idx].duration = job_arr[idx].wclimit * 60;
+	  swf_job_arr[idx].run_time = job_arr[idx].duration;
+    	}
+	if(job_arr[idx].duration <= 0){
+		printf("%ld: duration <= 0!\n", job_arr[idx].job_id);
+		job_arr[idx].duration = 1;
+		swf_job_arr[idx].run_time = 1;
+	}
+	
+	idx++;
+        counter++;
     }
     /* may check feof here to make a difference between eof and io failure -- network
        timeout for instance */
