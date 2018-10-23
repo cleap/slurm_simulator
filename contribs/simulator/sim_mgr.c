@@ -648,6 +648,7 @@ init_trace_info(void *ptr, int op) {
 		*new_trace_record = *(job_trace_t *)ptr;
 
 		if (count == 0) {
+			//sim_start_point = 1;
 			sim_start_point = new_trace_record->submit - 60;
 			/*first_submit = new_trace_record->submit;*/
 		}
