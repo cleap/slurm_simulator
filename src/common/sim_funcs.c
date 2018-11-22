@@ -27,7 +27,7 @@ int             * slurmd_pid;       /* Shared Memory */
 char            * global_sync_flag; /* Shared Memory */
 int             * trace_recs_end_sim; /* Shared Memory */
 char            * users_sim_path = NULL;
-char		shm_name[81] = "";
+char		shm_name[1025] = "";
 
 extern void         * timemgr_data;  /* Shared Memory */
 extern unsigned int * current_sim;   /* Shared Memory */
@@ -131,18 +131,13 @@ static int build_shared_memory() {
  */
 int attaching_shared_memory() { 
 	int fd;
-	printf("Before calling get_shm_name\n");
 	get_shm_name();
 	fd = shm_open(shm_name, O_RDWR, S_IRUSR | S_IWUSR);
-	printf("Before calling get_shm_name\n");	
 	if (fd >= 0) {
-		printf("fd>0\n");
 		if (ftruncate(fd, 32)) {
 			warn("Can not truncate shared memory segment.");
 		}
-		printf("Before mmap\n");
 		timemgr_data = mmap(0, 32, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-		printf("after mmap\n");
 	} else {
 		build_shared_memory();
 	}

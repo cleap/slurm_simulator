@@ -116,7 +116,6 @@ int main(int argc, char* argv[])
 	//	printf("Number of tasks %d, number of CPUs %d", job_arr[idx].tasks, swf_job_arr[idx].req_cpus);
 	    }
             if(i==8) {
-		printf("%s\n", p);
 		long wclim = atol(p);
 		wclim = ceil((double)wclim / 60.0f);
 		if (wclim >= INT_MAX) {

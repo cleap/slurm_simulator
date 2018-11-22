@@ -240,7 +240,7 @@ char *re_write_dependencies(char *dep_string) {
 void
 handlerSignal(int signo) {
 	signaled++;
-	printf ("SIM_MGR [%d] got a %d signal--signaled: %d\n", getpid (), signo, signaled);
+	fprintf (stderr,"SIM_MGR [%d] got a %d signal--signaled: %d\n", getpid (), signo, signaled);
 }
 
 
@@ -309,12 +309,13 @@ time_mgr(void *arg) {
 	current_micro[0] = 0;
 
 	/*signal (SIGUSR2, handlerSignal);*/
-	printf("Waiting for signals, signaled: %d...\n", signaled);
-	info("Waiting for signals..\n");
-	while (signaled < 1 ){
-		sleep(2); printf("... signaled: %d\n", signaled);
-	}
-printf("Done waiting.\n");
+//	printf("Waiting for signals, signaled: %d...\n", signaled);
+//	info("Waiting for signals..\n");
+//	sleep(2);
+//	while (signaled != 0){
+//		sleep(2); printf("... signaled: %d\n", signaled);
+//	}
+//	printf("Done waiting.\n");
 #ifdef DEBUG
 	gettimeofday(&t1, NULL);
 	printf("SIM_MGR[%u][%ld][%ld]\n", current_sim[0], t1.tv_sec, t1.tv_usec);
@@ -861,8 +862,16 @@ main(int argc, char *argv[], char *envp[]) {
 	struct stat buf;
 	int ix, envcount = countEnvVars(envp);
 
+	sigset_t sim_mask;
+	sigemptyset(&sim_mask);
+	sigaddset(&sim_mask,SIGUSR2);
+	sigaddset(&sim_mask,SIGINT);
+	sigaddset(&sim_mask,SIGHUP);
+	sigaddset(&sim_mask,SIGUSR1);
+	sigprocmask(SIG_UNBLOCK,&sim_mask,NULL);
+	
 	signal (SIGUSR2, handlerSignal);
-
+	
 	_create_job_id_list();
 	if ( !getArgs(argc, argv) ) {
 		printf("Usage: %s\n", help_msg);
@@ -894,8 +903,8 @@ main(int argc, char *argv[], char *envp[]) {
 		exit(-1);
 	}
 
-	printf("Settings:\n--------\n");
-	printf("launch_daemons: %d\nsim_daemons_path: %s\n"
+	fprintf(stderr,"Settings:\n--------\n");
+	fprintf(stderr,"launch_daemons: %d\nsim_daemons_path: %s\n"
 		"sim_end_point: %ld\nslurmctld: %s\nslurmd: %s\nenvironment "
 		"\n\n\n",
 		launch_daemons, SAFE_PRINT(sim_daemons_path), sim_end_point, daemon1, daemon2);
@@ -903,7 +912,6 @@ main(int argc, char *argv[], char *envp[]) {
 	/* Set up global environment list for later use in forking the daemons. */
 	envs = (char**)malloc(sizeof(char*)*(envcount+1));
 	global_envp = (char**)malloc(sizeof(char*)*(envcount+1));
-	printf("%d env", envcount);
 	for(ix=0; ix<envcount; ix++) {
 		envs[ix] = envp[ix];
 	}
@@ -916,12 +924,12 @@ main(int argc, char *argv[], char *envp[]) {
 	global_envp[i] = NULL;
 
 	if(open_global_sync_semaphore() < 0){
-		printf("Error opening the global synchronization semaphore.\n");
+		fprintf(stderr,"Error opening the global synchronization semaphore.\n");
 		return -1;
 	};
 
         if(init_job_trace() < 0){
-                printf("An error was detected when reading trace file. "
+                fprintf(stderr,"An error was detected when reading trace file. "
                        "Exiting...\n");
                 return -1;
         }
@@ -940,22 +948,29 @@ main(int argc, char *argv[], char *envp[]) {
 		return -1;
 	}*/
 
-	if(init_rsv_trace() < 0){
-		printf("An error was detected when reading trace file. \n"
-		       /*"Exiting...\n"*/);
+//	if(init_rsv_trace() < 0){
+//		printf("An error was detected when reading trace file. \n"
+		       /*"Exiting...\n");*/
 		/*return -1;*/
-	}
+//	}
 
-	pthread_attr_init(&attr);
+//	pthread_attr_init(&attr);
 	signal(SIGINT, terminate_simulation);
 	signal(SIGHUP, terminate_simulation);
 	signal(SIGUSR1, change_debug_level);
 
 	pthread_attr_init(&attr);
+        fprintf(stderr,"Waiting for signals, signaled: %d...\n", signaled);
+        fprintf(stderr,"Waiting for signals..\n");
+        sleep(2);
+        while (signaled != 0){
+                sleep(2); fprintf(stderr,"... signaled: %d\n", signaled);
+        }
+        fprintf(stderr,"Done waiting.\n");
 
 	/* This is a thread for flexibility */
 	while (pthread_create(&id_mgr, &attr, &time_mgr, 0)) {
-		printf("Error with pthread_create for time_mgr\n"); 
+		fprintf(stderr,"Error with pthread_create for time_mgr\n"); 
 		return -1;
 	}
 
