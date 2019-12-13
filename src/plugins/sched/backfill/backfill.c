@@ -1129,7 +1129,7 @@ static bool _job_runnable_now(struct job_record *job_ptr)
 	return true;
 }
 
-static int attempt_backfill(void)
+static int _attempt_backfill(void)
 {
 	DEF_TIMERS;
 	List job_queue;
