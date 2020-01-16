@@ -103,7 +103,7 @@ main(int argc, char* argv[]) {
 	fprintf(fp, "Now:              %ld\n", now);
 
 	rv = slurm_load_jobs((time_t)NULL, &jobListPtr, SHOW_ALL);
-	if (rv != SLURM_PROTOCOL_SUCCESS) {
+	if (rv != SLURM_SUCCESS) {
 		printf("Error!  Couldn not read Slurm jobs.\nAbort!");
 		exit(-1);
 	} else {
@@ -138,7 +138,7 @@ recordRecord(slurm_job_info_t* j) {
 	fprintf(fp, "assoc_id          %u\n",  j->assoc_id);
 	fprintf(fp, "batch_flag        %u\n",  j->batch_flag);
 	fprintf(fp, "batch_host        %s\n",  j->batch_host);
-	fprintf(fp, "batch_script      %s\n",  j->batch_script);
+	//fprintf(fp, "batch_script      %s\n",  j->batch_script);
 	fprintf(fp, "command           %s\n",  j->command);
 	fprintf(fp, "comment           %s\n",  j->comment);
 	fprintf(fp, "contiguous        %u\n",  j->contiguous);
@@ -151,7 +151,7 @@ recordRecord(slurm_job_info_t* j) {
 	/*fprintf(fp, "exc_node_inx      %ld\n", j->exc_node_inx);*/
 	fprintf(fp, "exit_code         %u\n",  j->exit_code);
 	fprintf(fp, "features          %s\n",  j->features);
-	fprintf(fp, "gres              %s\n",  j->gres);
+	//fprintf(fp, "gres              %s\n",  j->gres);
 	fprintf(fp, "group_id          %u\n",  j->group_id);
 	fprintf(fp, "job_id            %u\n",  j->job_id);
 	fprintf(fp, "job_state         %u\n",  j->job_state);
@@ -175,7 +175,7 @@ recordRecord(slurm_job_info_t* j) {
 	fprintf(fp, "num_nodes         %u\n",  j->num_nodes);
 	fprintf(fp, "num_cpus          %u\n",  j->num_cpus);
 	fprintf(fp, "partition         %s\n",  j->partition);
-	fprintf(fp, "pn_min_memory     %u\n",  j->pn_min_memory);
+	fprintf(fp, "pn_min_memory     %lu\n",  j->pn_min_memory);
 	fprintf(fp, "pn_min_cpus       %u\n",  j->pn_min_cpus);
 	fprintf(fp, "pn_min_tmp_disk   %u\n",  j->pn_min_tmp_disk);
 	fprintf(fp, "pre_sus_time      %ld\n", j->pre_sus_time);

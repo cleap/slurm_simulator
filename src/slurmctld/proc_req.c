@@ -118,7 +118,6 @@ static uint64_t *rpc_user_time = NULL;
 
 #ifdef SLURM_SIMULATOR
 #include <semaphore.h>
-int finished_jobs_waiting_for_epilog=0;
 #endif
 
 static pthread_mutex_t throttle_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -2345,7 +2344,6 @@ static void  _slurm_rpc_epilog_complete(slurm_msg_t *msg,
 
 	END_TIMER2("_slurm_rpc_epilog_complete");
 
-#ifndef SLURM_SIMULATOR
 	/* Functions below provide their own locking */
 	if (!running_composite && *run_scheduler) {
 		debug2("_slurm_rpc_epilog_complete JobId=%u Node=%s %s",
@@ -2372,10 +2370,10 @@ static void  _slurm_rpc_epilog_complete(slurm_msg_t *msg,
 	/* NOTE: RPC has no response */
 #ifdef SLURM_SIMULATOR
 	info("SIM: Processing RPC: MESSAGE_EPILOG_COMPLETE for jobid %d", epilog_msg->job_id);
-        slurm_send_rc_msg(msg, SLURM_SUCCESS);
+	slurm_send_rc_msg(msg, SLURM_SUCCESS);
 	finished_jobs_waiting_for_epilog--;
-        /* ANA: keep track of the jobs that have finished in its entirety. */
-        total_epilog_complete_jobs++;
+	/* ANA: keep track of the jobs that have finished in its entirety. */
+	total_epilog_complete_jobs++;
         
 #endif
 }

@@ -582,7 +582,7 @@ simulator_rpc_batch_job(slurm_msg_t *msg)
 	batch_job_launch_msg_t *req = (batch_job_launch_msg_t *)msg->data;
 	bool     first_job_run = true;
 	int      rc = SLURM_SUCCESS;
-	uid_t    req_uid = g_slurm_auth_get_uid(msg->auth_cred, NULL);
+	uid_t    req_uid = g_slurm_auth_get_uid(msg->auth_cred);
 	char    *resv_id = NULL;
 	bool     replied = false;
 	slurm_addr_t *cli = &msg->orig_addr;
@@ -3688,7 +3688,7 @@ simulator_rpc_terminate_job(slurm_msg_t *rec_msg)
 	msg.data        = &req;
 
 	/* Let wait for an answer for simulation syncronization */
-	slurm_send_recv_controller_rc_msg(&msg, &rc);
+	slurm_send_recv_controller_rc_msg(&msg, &rc, working_cluster_rec);
 	waiting_epilog_msgs--;
 	hostlist_destroy(hl);
 	free((void*)event_sim);

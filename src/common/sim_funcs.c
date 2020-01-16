@@ -405,6 +405,7 @@ void __attribute__ ((constructor)) sim_init(void) {
 
 	debug("sim_init: done");
 }
+
 /*************ANA: Replacing signals with shared vars for slurmd registration *****/
 int
 sim_open_sem(char * sem_name, sem_t ** mutex_sync, int max_attempts)

@@ -1092,10 +1092,10 @@ extern void *backfill_agent(void *args)
 	}
 #endif
 	_load_config();
+#ifndef SLURM_SIMULATOR	
 	last_backfill_time = time(NULL);
-#ifdef SLURM_SIMULATOR
+#else
 	open_BF_sync_semaphore_pg();
-	backfill_interval=2;
 #endif
 	pack_job_list = list_create(_pack_map_del);
 	while (!stop_backfill) {
@@ -1145,8 +1145,9 @@ extern void *backfill_agent(void *args)
 
 #ifdef SLURM_SIMULATOR
 		debug("backfill: now %ld, last_backfill_time %ld, wait_time %lf, backfill_interval %d ", now, last_backfill_time, wait_time, backfill_interval);
-		if (!(_job_is_completing(NULL) || _many_pending_rpcs() ||
+		if (!(job_is_completing(NULL) || _many_pending_rpcs() ||
 			 !avail_front_end(NULL) || !_more_work(last_backfill_time))) {
+#endif
 			lock_slurmctld(all_locks);
 			if ((backfill_cnt++ % 2) == 0)
 				_pack_start_clear();
@@ -1160,6 +1161,9 @@ extern void *backfill_agent(void *args)
 		slurm_mutex_unlock(&check_bf_running_lock);
 
 		short_sleep = false;
+#ifdef SLURM_SIMULATOR
+		sem_post(mutex_bf_done_pg);
+#endif
 	}
 	FREE_NULL_LIST(pack_job_list);
 	xhash_free(user_usage_map); /* May have been init'ed if used */
@@ -1685,7 +1689,6 @@ static int _attempt_backfill(void)
 
 	bf_sleep_usec = 0;
 	job_start_cnt = 0;
-
 	if (!fed_mgr_sibs_synced()) {
 		info("backfill: %s returning, federation siblings not synced yet",
 		     __func__);

@@ -128,7 +128,6 @@
 #include "src/slurmd/slurmd/get_mach_stat.h"
 #include "src/slurmd/slurmd/req.h"
 #include "src/slurmd/slurmd/slurmd.h"
-#include "src/slurmd/slurmd/slurmd_plugstack.h"
 
 #ifdef SLURM_SIMULATOR
 #include "sim_events.h"
@@ -195,8 +194,6 @@ static char	res_abs_cpus[MAX_CPUSTR]; /* reserved abstract CPUs list */
 static char	*res_mac_cpus = NULL;	/* reserved machine CPUs list */
 static int	ncores;			/* number of cores on this node */
 static int	ncpus;			/* number of CPUs on this node */
-
-pthread_mutex_t simulator_mutex  = PTHREAD_MUTEX_INITIALIZER;
 
 /*
  * static shutdown and reconfigure flags:
@@ -577,7 +574,7 @@ _registration_engine(void *arg)
 
 #ifdef SLURM_SIMULATOR
 /*** ANA: Replacing signals for slurmd registration ****/
-notify_sim_mgr()
+static int notify_sim_mgr()
 {
         int sem_opened = 0;
 
@@ -674,7 +671,7 @@ _send_sim_helper_cycle_msg(uint32_t jobs_count)
        for (i=0; i<=5; i++) {
                struct timespec waiting;
 
-               if (slurm_send_recv_controller_rc_msg(&req_msg, &rc) == 0)
+               if (slurm_send_recv_controller_rc_msg(&req_msg, &rc, working_cluster_rec) == 0)
                        break;
                info("SIM: Retrying message helper cycle RPC");
                waiting.tv_sec = 0;

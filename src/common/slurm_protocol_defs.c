@@ -960,7 +960,9 @@ extern void slurm_free_job_launch_msg(batch_job_launch_msg_t * msg)
 		xfree(msg->cpu_bind);
 		xfree(msg->cpus_per_node);
 		xfree(msg->cpu_count_reps);
+#ifndef SLURM_SIMULATOR
 		slurm_cred_destroy(msg->cred);
+#endif
 		if (msg->environment) {
 			for (i = 0; i < msg->envc; i++)
 				xfree(msg->environment[i]);
@@ -1290,9 +1292,9 @@ extern void slurm_free_sim_job_msg(sim_job_msg_t *msg)
     xfree(msg);
 }
 
-extern void slurm_free_signal_job_msg(signal_job_msg_t * msg)
+extern void slurm_free_sim_helper_msg(sim_helper_msg_t *msg)
 {
-	xfree(msg);
+    xfree(msg);
 }
 
 extern void slurm_free_update_job_time_msg(job_time_msg_t * msg)

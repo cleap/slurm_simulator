@@ -1997,10 +1997,9 @@ static int  _job_start(slurmdbd_conn_t *slurmdbd_conn,
 							ESLURM_ACCESS_DENIED,
 							comment,
 							DBD_JOB_START);
-#endif
 		return SLURM_ERROR;
 	}
-
+#endif
 	_process_job_start(slurmdbd_conn, job_start_msg, &id_rc_msg);
 
 	*out_buffer = init_buf(1024);

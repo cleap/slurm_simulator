@@ -1220,10 +1220,6 @@ pack_msg(slurm_msg_t const *msg, Buf buffer)
 				    buffer,
 				    msg->protocol_version);
 		break;
-	case REQUEST_SIGNAL_JOB:
-		_pack_signal_job_msg((signal_job_msg_t *) msg->data, buffer,
-				     msg->protocol_version);
-		break;
 	case REQUEST_SIM_JOB:
 		_pack_sim_job_msg((sim_job_msg_t *)msg->data, buffer);
 		break;
@@ -1946,11 +1942,6 @@ unpack_msg(slurm_msg_t * msg, Buf buffer)
 		rc = _unpack_job_step_pids(
 			(job_step_pids_t **)&msg->data,
 			buffer,	msg->protocol_version);
-		break;
-	case REQUEST_SIGNAL_JOB:
-		rc = _unpack_signal_job_msg((signal_job_msg_t **)&(msg->data),
-					    buffer,
-					    msg->protocol_version);
 		break;
 	case REQUEST_SIM_JOB:
 		_unpack_sim_job_msg((sim_job_msg_t **)&msg->data, buffer);
