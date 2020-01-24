@@ -54,7 +54,11 @@ extern pid_t getpgid(pid_t pid);
 #endif
 
 extern int devnull;
+#ifdef SLURM_SIMULATOR
 extern int waiting_epilog_msgs;
+extern pthread_mutex_t epilogs_mutex;
+#endif
+
 /*
  * Message aggregation types
  */
