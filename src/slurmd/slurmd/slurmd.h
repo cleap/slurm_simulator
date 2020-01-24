@@ -56,6 +56,11 @@ extern pid_t getpgid(pid_t pid);
 extern int devnull;
 extern bool get_reg_resp;
 
+#ifdef SLURM_SIMULATOR
+extern int waiting_epilog_msgs;
+extern pthread_mutex_t epilogs_mutex;
+#endif
+
 /*
  * Message aggregation types
  */
@@ -64,7 +69,6 @@ typedef enum {
 	WINDOW_MSGS
 } msg_aggr_param_type_t;
 
-extern int waiting_epilog_msgs;
 /*
  * Global config type
  */

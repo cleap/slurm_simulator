@@ -36,7 +36,7 @@
 #include <src/common/xstring.h>
 #include <src/common/assoc_mgr.h>
 #include <src/common/slurm_sim.h>
-#include "src/common/sim_funcs.h"
+#include <src/common/sim_funcs.h>
 //#include "src/unittests_lib/tools.h"
 #include <getopt.h>
 
@@ -56,8 +56,9 @@ char  daemon2[1024];
 char  default_sim_daemons_path[] = "/sbin";
 char* sim_daemons_path = NULL;
 
-char SEM_NAME[] = "serversem";
-sem_t* mutexserver;
+sem_t *sim_sem;
+sem_t *slurm_sem;
+
 /*ANA: Replacing signals with shared vars for slurmd registration ***/
 char    sig_sem_name[]  = "signalsem";
 sem_t* mutexsignal = SEM_FAILED;
@@ -253,14 +254,19 @@ void
 terminate_simulation(int signum) {
 
 	int i;
+	char sim_sem_name[100], slurm_sem_name[100];
+	get_semaphores_names(sim_sem_name, slurm_sem_name);
 
 	dumping_shared_mem();
 
-	sem_close(mutexserver);
-	sem_unlink(SEM_NAME);
+	sem_close(sim_sem);
+	sem_unlink(sim_sem_name);
+	sem_close(slurm_sem);
+	sem_unlink(slurm_sem_name);
 
 	slurm_shutdown(0); /* 0-shutdown all daemons without a core file */
 
+	sleep(3);
 	if(signum == SIGINT)
 		exit(0);
 
@@ -337,14 +343,6 @@ time_mgr(void *arg) {
 					" simulation\n");
 			terminate_simulation(SIGINT);
 		}
-
-		/* First going through threads and leaving a chance to execute code */
-
-		gettimeofday(&t1, NULL);
-
-		sim_mgr_debug(3, "SIM_MGR[%u][%ld][%ld]\n",
-				current_sim[0], t1.tv_sec, t1.tv_usec);
-
 #if 1
 		/* Now checking if a new reservation needs to be created */
 		if(rsv_trace_head &&
@@ -429,19 +427,9 @@ time_mgr(void *arg) {
 
 		/* Synchronization with daemons */
 		//info("before unlocking next loop");
-		sem_wait(mutexserver);
-		info("unlocking next loop");
-		*global_sync_flag = 1;
-		sem_post(mutexserver);
-		while(1) {
-			sem_wait(mutexserver);
-			if (*global_sync_flag == '*' || *global_sync_flag == 3) {
-				sem_post(mutexserver);
-				break;
-			}
-			sem_post(mutexserver);
-                	usleep(sync_loop_wait_time);
-		}
+		sem_post(slurm_sem);
+		sem_wait(sim_sem);
+
 		/*
 		 * Time throttling added but currently unstable; for now, run
 		 * with only 1 second intervals
@@ -457,10 +445,10 @@ time_mgr(void *arg) {
 				1000000.0;
 		//printf("sim_mgr loop iteration time %lu, SU: %f, sim_inc: %d, sim_time: %d\n",
 		//		i_loop.tv_usec, speed_up, time_incr, *(current_sim));
-//#ifdef DEBUG
+#ifdef DEBUG
 		info("[%d] time_mgr--current simulated time: %lu\n",
 					__LINE__, *current_sim);
-//#endif
+#endif
 	}
 
 	return 0;
@@ -827,15 +815,23 @@ printf("Reading filename %s for execution at %ld\n",
 
 int
 open_global_sync_semaphore() {
-	mutexserver = sem_open(SEM_NAME, O_CREAT, 0644, 1);
-	if(mutexserver == SEM_FAILED) {
-		perror("unable to create server semaphore");
-		sem_unlink(SEM_NAME);
+	char sim_sem_name[100], slurm_sem_name[100];
+	get_semaphores_names(sim_sem_name, slurm_sem_name);
+	sim_sem = sem_open(sim_sem_name, O_CREAT, 0644, 0);
+	if(sim_sem == SEM_FAILED) {
+		perror("unable to create simulation semaphore");
+		sem_unlink(sim_sem_name);
 		return -1;
 	}
-
+	slurm_sem = sem_open(slurm_sem_name, O_CREAT, 0644, 0);
+	if(slurm_sem == SEM_FAILED) {
+		perror("unable to create slurm semaphore");
+		sem_unlink(slurm_sem_name);
+		return -1;
+	}
 	return 0;
 }
+
 /*ANA: Replacing signals with shared vars for slurmd registration ***/
 static int
 open_slurmd_ready_semaphore()

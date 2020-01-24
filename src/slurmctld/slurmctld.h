@@ -232,8 +232,8 @@ extern bool  slurmctld_init_db;
 extern int   slurmctld_primary;
 extern int   slurmctld_tres_cnt;
 extern slurmdb_cluster_rec_t *response_cluster_rec;
-extern int    slurmctld_running_job_count;
-extern time_t slurmctld_running_job_count_ts;
+extern bool   test_config;
+extern int    test_config_rc;
 #ifdef SLURM_SIMULATOR
 extern int backfill_interval;
 #endif
@@ -241,7 +241,6 @@ extern int backfill_interval;
  * jobid, taskid and state.
  */
 #define JBUFSIZ 256
->>>>>>> Changes in .h files related to porting to 17.11 and enabling bf_interval editing in slurm.conf
 /*****************************************************************************\
  *  NODE parameters and data structures, mostly in src/common/node_conf.h
 \*****************************************************************************/
