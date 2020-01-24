@@ -93,7 +93,7 @@ sim_funcs.lo: sim_funcs.c /usr/include/stdc-predef.h \
  ../../src/common/slurm_persist_conn.h \
  ../../src/common/slurm_step_layout.h ../../src/common/hostlist.h \
  ../../src/common/slurmdb_defs.h ../../src/common/working_cluster.h \
- ../../src/common/xassert.h ../../src/common/macros.h
+ ../../src/common/xassert.h ../../src/common/macros.h /usr/include/err.h
 
 /usr/include/stdc-predef.h:
 
@@ -366,3 +366,5 @@ sim_funcs.lo: sim_funcs.c /usr/include/stdc-predef.h \
 ../../src/common/xassert.h:
 
 ../../src/common/macros.h:
+
+/usr/include/err.h:

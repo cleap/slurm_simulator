@@ -1,13 +1,13 @@
 use 5.008;
 use ExtUtils::MakeMaker;
 
-if (!(-e "/media/sf_workspace/SIMULATOR_git/slurm_install/slurm_programs/lib/libslurmdb.so") && !(-e "../../../../src/db_api/.libs/libslurmdb.so")) {
+if (!(-e "/home/marcodamico/slurm-port_tools/install/slurm_programs/lib/libslurmdb.so") && !(-e "../../../../src/db_api/.libs/libslurmdb.so")) {
 	die("I can't seem to find the library files I need in your SLURM installation.
 Please check that you have SLURM installation has at least one of the
 following link(s):
 
    ../../../../src/db_api/.libs/libslurmdb.so
-   /media/sf_workspace/SIMULATOR_git/slurm_install/slurm_programs/lib/libslurmdb.so\n");
+   /home/marcodamico/slurm-port_tools/install/slurm_programs/lib/libslurmdb.so\n");
 }
 
 # Most all the extra code is to deal with MakeMaker < 6.11 not working
@@ -76,7 +76,7 @@ DESTDIR_BUG
 # AIX has problems with not always having the correct
 # flags so we have to add some :)
 my $os = lc(`uname`);
-my $other_ld_flags = "-Wl,-rpath,../../../../src/db_api/.libs -Wl,-rpath,/media/sf_workspace/SIMULATOR_git/slurm_install/slurm_programs/lib";
+my $other_ld_flags = "-Wl,-rpath,../../../../src/db_api/.libs -Wl,-rpath,/home/marcodamico/slurm-port_tools/install/slurm_programs/lib";
 $other_ld_flags = " -brtl -G -bnoentry -bgcbypass:1000 -bexpfull"
 	if $os =~ "aix";
 
@@ -87,7 +87,7 @@ WriteMakefile(
     ($] >= 5.005 ?     ## Add these new keywords supported since 5.005
       (ABSTRACT_FROM  => 'Slurmdb.pm', # retrieve abstract from module
        AUTHOR         => 'Don Lipari <lipari@llnl.gov>') : ()),
-    LIBS              => ["-L../../../../src/db_api/.libs -L/media/sf_workspace/SIMULATOR_git/slurm_install/slurm_programs/lib -lslurmdb"], # e.g., '-lm'
+    LIBS              => ["-L../../../../src/db_api/.libs -L/home/marcodamico/slurm-port_tools/install/slurm_programs/lib -lslurmdb"], # e.g., '-lm'
     DEFINE            => '', # e.g., '-DHAVE_SOMETHING'
     INC               => "-I. -I../../../.. -I../../../../contribs/perlapi/common -I../../../..",
     # Un-comment this if you add C files to link with later:

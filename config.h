@@ -214,7 +214,7 @@
 /* #undef HAVE_OFED_PMA_QUERY_VIA */
 
 /* define if you have openssl. */
-/* #undef HAVE_OPENSSL */
+#define HAVE_OPENSSL 1
 
 /* define if you have the PAM library */
 /* #undef HAVE_PAM */
@@ -579,7 +579,7 @@
 #define SLURM_MINOR "11"
 
 /* Define Slurm installation prefix */
-#define SLURM_PREFIX "/media/sf_workspace/SIMULATOR_git/slurm_install/slurm_programs"
+#define SLURM_PREFIX "/home/marcodamico/slurm-port_tools/install/slurm_programs"
 
 /* SLURM Version Number */
 #define SLURM_VERSION_NUMBER 0x110b02

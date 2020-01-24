@@ -1,4 +1,4 @@
-configure: WARNING: unrecognized options: --with-proctrack, --enable-simulator
+configure: WARNING: unrecognized options: --enable-simulator
 configure: WARNING: unable to locate PAM libraries
 configure: WARNING: unable to locate json parser library
 configure: WARNING: unable to locate ofed installation
@@ -19,6 +19,5 @@ configure: WARNING: unable to locate netloc installation
 configure: WARNING: unable to locate lua package
 configure: WARNING: unable to build man page html files without man2html
 configure: WARNING: configured for readline support, but couldn't find libraries
-configure: WARNING: could not find working OpenSSL library
 configure: WARNING: unable to locate/link against libcurl-devel installation
-configure: WARNING: unrecognized options: --with-proctrack, --enable-simulator
+configure: WARNING: unrecognized options: --enable-simulator
