@@ -1,3 +1,11 @@
+Slurm Simulator
+--------------------------------------------------------
+This is a version of SLURM simulator's code improved and ported to SLURM 17.11 at Barcelona Supercomputing Center by Ana Jokanovic and Marco D'Amico. The reference paper on the simulator's validation is "Evaluating SLURM simulator with real-machine SLURM and vice versa" published at PMBS18 (https://ieeexplore.ieee.org/document/8641556).
+The starting point for the improvements was the simulator's version by Gonzalo Rodrigo from Umea University & Berkley Lab reported in the paper https://link.springer.com/chapter/10.1007/978-3-319-77398-8\_9.
+
+To install please start from cloning and following the README inside the repo:
+https://github.com/BSC-RM/slurm_simulator_tools.git
+
 Slurm Workload Manager
 --------------------------------------------------------
 
