@@ -976,7 +976,7 @@ extern void slurm_free_job_launch_msg(batch_job_launch_msg_t * msg)
 		xfree(msg->resv_name);
 		xfree(msg->script);
 		free_buf(msg->script_buf);
-		select_g_select_jobinfo_free(msg->select_jobinfo);
+		//select_g_select_jobinfo_free(msg->select_jobinfo);
 		if (msg->spank_job_env) {
 			for (i = 0; i < msg->spank_job_env_size; i++)
 				xfree(msg->spank_job_env[i]);
@@ -989,7 +989,7 @@ extern void slurm_free_job_launch_msg(batch_job_launch_msg_t * msg)
 		xfree(msg->tres_freq);
 		xfree(msg->user_name);
 		xfree(msg->work_dir);
-		xfree(msg);
+		//xfree(msg);
 	}
 }
 
@@ -1273,17 +1273,17 @@ extern void slurm_free_kill_job_msg(kill_job_msg_t * msg)
 {
 	if (msg) {
 		int i;
-		FREE_NULL_LIST(msg->job_gres_info);
-		xfree(msg->nodes);
-		select_g_select_jobinfo_free(msg->select_jobinfo);
+		//FREE_NULL_LIST(msg->job_gres_info);
+		//xfree(msg->nodes);
+		//select_g_select_jobinfo_free(msg->select_jobinfo);
 		msg->select_jobinfo = NULL;
 
 		if (msg->spank_job_env) {
 			for (i = 0; i < msg->spank_job_env_size; i++)
-				xfree(msg->spank_job_env[i]);
-			xfree(msg->spank_job_env);
+				;//xfree(msg->spank_job_env[i]);
+			//xfree(msg->spank_job_env);
 		}
-		xfree(msg);
+		//xfree(msg);
 	}
 }
 
