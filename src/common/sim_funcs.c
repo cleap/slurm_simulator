@@ -2,6 +2,8 @@
 
 #include "src/common/sim_funcs.h"
 #include "src/common/slurm_protocol_defs.h"
+#include "src/common/xmalloc.h"
+#include "src/common/xstring.h"
 #include <err.h>
 /* Structures, macros and other definitions */
 //#define LIBC_PATH  "/lib/x86_64-linux-gnu/libc.so.6"
@@ -18,7 +20,6 @@ typedef struct sim_user_info{
 }sim_user_info_t;
 
 /* Function Pointers */
-int (*real_gettimeofday)(struct timeval *,struct timezone *) = NULL;
 time_t (*real_time)(time_t *)                                = NULL;
 
 /* Global Variables */
@@ -58,8 +59,7 @@ time_t time(time_t *t) {
 		return *(current_sim);
 	}
 };
-
-int gettimeofday(struct timeval *tv, struct timezone *tz){
+int gettimeofday(struct timeval *tv, void *tz){
 	init_shared_memory_if_needed();
 
 	if (!(current_sim) && !real_gettimeofday) init_funcs();
@@ -220,7 +220,7 @@ char *sim_getname(uid_t uid) {
 		if (aux->sim_uid == uid) {
 			//user_name = malloc(100);
 			//memset(user_name,'\0',100);
-			user_name = strdup(aux->sim_name);
+			user_name = xstrdup(aux->sim_name);
 			return user_name;
 		}
 		aux = aux->next;
@@ -354,7 +354,7 @@ static int getting_simulation_users() {
 		if (pos == 0)
 			break;
 
-		new_sim_user = malloc(sizeof(sim_user_info_t));
+		new_sim_user = xmalloc(sizeof(sim_user_info_t));
 		if (new_sim_user == NULL) {
 			error("Malloc error for new sim user");
 			return -1;

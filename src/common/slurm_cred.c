@@ -65,6 +65,10 @@
 #include "src/common/xmalloc.h"
 #include "src/common/xstring.h"
 
+#ifdef SLURM_SIMULATOR
+#include "src/common/sim_funcs.h"
+#endif
+
 #ifndef __sbcast_cred_t_defined
 #  define  __sbcast_cred_t_defined
 typedef struct sbcast_cred sbcast_cred_t;		/* opaque data type */
