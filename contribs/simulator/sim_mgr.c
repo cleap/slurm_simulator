@@ -17,7 +17,6 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <sys/syscall.h> /* SYS_gettid */
-#include <pwd.h>
 #include <ctype.h>
 #include <sim_trace.h>
 #include <sys/mman.h>
@@ -469,115 +468,105 @@ generateJob(job_trace_t* jobd) {
 	sim_job_msg_t req;
 	slurm_msg_t   req_msg;
 	slurm_msg_t   resp_msg;
-	slurm_addr_t  remote_addr;
 	char* this_addr;
+	uint32_t trace_job_id;
+	
+	// NO job_req_list - Normal Submission     
+	if (!modular_jobid) {
+		trace_job_id = jobd->job_id;
 
-	uint32_t trace_job_id=jobd->job_id;
+		slurm_init_job_desc_msg(&dmesg);
+		generate_job_desc_msg(&dmesg, jobd);
 
-	sprintf(script,"#!/bin/bash\n");
+		if ( slurm_submit_batch_job(&dmesg, &rptr) ) {
+			printf("Function: %s, Line: %d\n", __FUNCTION__, __LINE__);
+			slurm_perror ("slurm_submit_batch_job");
+		}
 
-	slurm_init_job_desc_msg(&dmesg);
+		_add_job_pair(trace_job_id, rptr->job_id);
 
-	/* First, set up and call Slurm C-API for actual job submission. */
-	dmesg.time_limit    = jobd->wclimit;
-	dmesg.job_id        = NO_VAL;
-	dmesg.name	    = "sim_job";
-	uidt = userIdFromName(jobd->username, &gidt);
-	dmesg.user_id       = uidt;
-	dmesg.group_id      = gidt;
-	dmesg.work_dir      = strdup("/tmp"); /* hardcoded to /tmp for now */
-	dmesg.qos           = strdup(jobd->qosname);
-	dmesg.partition     = strdup(jobd->partition);
-	dmesg.account       = strdup(jobd->account);
-	dmesg.reservation   = strdup(jobd->reservation);
-	dmesg.dependency    = re_write_dependencies(jobd->dependency);
-	dmesg.num_tasks     = jobd->tasks;
-	dmesg.min_cpus      = jobd->tasks * jobd->cpus_per_task; 
-	dmesg.cpus_per_task = jobd->cpus_per_task;
-	dmesg.min_nodes     = jobd->tasks;
-	dmesg.ntasks_per_node = jobd->tasks_per_node;
+		printf("Response from job submission\n\terror_code: %u\n\t"
+				 "job_id: %u\n",
+				 rptr->error_code, rptr->job_id);
+		/* steps not simulated for now */
+				//"job_id: %u\n\tstep_id: %u\n",
+				//rptr->error_code, rptr->job_id, rptr->step_id);
+		printf("\n");
 
-	/* Need something for environment--Should make this een more generic! */
-	dmesg.environment  = (char**)malloc(sizeof(char*)*2);
-	dmesg.environment[0] = strdup("HOME=/root");
-	dmesg.env_size = 1;
-
-	/* Standard dummy script. */
-	sprintf(line,"#SBATCH -n %u\n", jobd->tasks);
-	strcat(script, line);
-	strcat(script, "\necho \"Generated BATCH Job\"\necho \"La Fine!\"\n");
-
-	dmesg.script        = strdup(script);
-	if (jobd->manifest!=NULL) {
-//		dmesg.wf_program = strdup(jobd->manifest);
-		dmesg.name=xmalloc(3+strlen(jobd->manifest_filename)+1+6+4+1);
-		sprintf(dmesg.name, "wf_%s%d",
-				jobd->manifest_filename,
-				workflow_count);
-		workflow_count+=1;
-	} else if (strlen(jobd->manifest_filename)>1) {
-		dmesg.name=xstrdup(jobd->manifest_filename+1);
-	}
-
-	if ( slurm_submit_batch_job(&dmesg, &rptr) ) {
-		printf("Function: %s, Line: %d\n", __FUNCTION__, __LINE__);
-		slurm_perror ("slurm_submit_batch_job");
-	}
-
-	_add_job_pair(trace_job_id, rptr->job_id);
-
-	printf("\nResponse from job submission\n\terror_code: %u\n\t"
-	       "job_id: %u\n\tstep_id: %u\n",
-		rptr->error_code, rptr->job_id, rptr->step_id);
-	printf("\n");
-
-	/*
-	 * Second, send special Simulator message to the slurmd to inform it
-	 * when the given job should terminate. job_id is obtained from whatever
-	 * slurmctld returned.
-	 */
-	slurm_msg_t_init(&req_msg);
-	slurm_msg_t_init(&resp_msg);
-	req.job_id       = rptr->job_id;
-	req.duration     = jobd->duration;
-	req_msg.msg_type = REQUEST_SIM_JOB;
-	req_msg.data     = &req;
-	req_msg.protocol_version = SLURM_PROTOCOL_VERSION;
-	this_addr = "localhost";
-	slurm_set_addr(&req_msg.address, (uint16_t)slurm_get_slurmd_port(),
+		/*
+		* Second, send special Simulator message to the slurmd to inform it
+		* when the given job should terminate. job_id is obtained from whatever
+		* slurmctld returned.
+		*/
+		slurm_msg_t_init(&req_msg);
+		slurm_msg_t_init(&resp_msg);
+		req.job_id       = rptr->job_id;
+		req.duration     = jobd->duration;
+		req_msg.msg_type = REQUEST_SIM_JOB;
+		req_msg.data     = &req;
+		req_msg.protocol_version = SLURM_PROTOCOL_VERSION;
+		this_addr = "localhost";
+		slurm_set_addr(&req_msg.address, (uint16_t)slurm_get_slurmd_port(),
 						this_addr);
-	if (!jobd->manifest || 1) {
 		if (slurm_send_recv_node_msg(&req_msg, &resp_msg, 500000) < 0) {
 			printf("check_events_trace: error in slurm_send_recv_node_msg\n");
 		}
 	}
+	// THERE IS job_req_list - Job Pack Submission
+	else {
+		if ( slurm_submit_batch_pack_job(*job_req_list, &rptr) ) {
+			printf("Function: %s, Line: %d\n", __FUNCTION__, __LINE__);
+			slurm_perror ("slurm_submit_batch_pack_job");
+		}
 
-	/* Should release the memory of the resp_msg and req_msg. */
+		printf("Response from job pack submission\n\terror_code: %u\n\t"
+				"job_id: %u\n",
+				rptr->error_code, rptr->job_id);
+				//"job_id: %u\n\tstep_id: %u\n",
+				//rptr->error_code, rptr->job_id, rptr->step_id);
+		printf("\n");
+
+		/*
+		* Second, send special Simulator message to the slurmd to inform it
+		* when the given job should terminate. job_id is obtained from whatever
+		* slurmctld returned.
+		*/
+		for (int comp = 0; comp < duration[0]; ++comp) {
+			_add_job_pair(modular_jobid+comp, rptr->job_id+comp);
+			slurm_msg_t_init(&req_msg);
+			slurm_msg_t_init(&resp_msg);
+			req.job_id       = rptr->job_id + comp;
+			req.duration     = (uint32_t) duration[comp+1];
+			req_msg.msg_type = REQUEST_SIM_JOB;
+            req_msg.data     = &req;
+			req_msg.protocol_version = SLURM_PROTOCOL_VERSION;
+			this_addr = "localhost";
+			slurm_set_addr(&req_msg.address, (uint16_t)slurm_get_slurmd_port(),
+								this_addr);
+			
+			if (slurm_send_recv_node_msg(&req_msg, &resp_msg, 500000) < 0) {
+				printf("check_events_trace: error in slurm_send_recv_node_msg\n");
+			}
+
+			// slurm_free_submit_response_response_msg(req_msg);
+			// slurm_free_submit_response_response_msg(resp_msg);
+			/* Should release the memory of the resp_msg and req_msg. */		
+		}
+	}
 }
 
 uid_t
 userIdFromName(const char *name, gid_t* gid) {
 	struct passwd the_pwd;
 	struct passwd *pwd=&the_pwd, *pwd_ptr;
-	uid_t u;
-	char *endptr;
+	//uid_t u;
+	//char *endptr;
 
 	*gid = -1;			    /* In case of error, a -1     */
 					    /* would be returned.         */
 
 	if (name == NULL || *name == '\0')  /* On NULL or empty string    */
 		return -1;                  /* return an error            */
-
-	u = strtol(name, &endptr, 10);      /* As a convenience to caller */
-	if (*endptr == '\0') {              /* allow a numeric string     */
-		pwd = getpwuid(u);
-		if (pwd == NULL)
-			printf("Warning!  Could not find the group id "
-			       "corresponding to the user id: %u\n", u);
-		else
-			*gid = pwd->pw_gid;
-		return u;
-	}
 
 	getpwnam_r(name, pwd, NULL, 0, &pwd_ptr);
 	if (pwd == NULL)
