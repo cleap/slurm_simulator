@@ -1112,6 +1112,9 @@ typedef struct batch_job_launch_msg {
 	char *tres_bind;	/* task binding to TRES (e.g. GPUs),
 				 * included for possible future use */
 	char *tres_freq;	/* frequency/power for TRES (e.g. GPUs) */
+#ifdef SLURM_SIMULATOR
+	uint32_t duration;
+#endif
 } batch_job_launch_msg_t;
 
 typedef struct job_id_request_msg {

@@ -8699,6 +8699,9 @@ _pack_job_desc_msg(job_desc_msg_t * job_desc_ptr, Buf buffer,
 		packstr(job_desc_ptr->tres_per_node, buffer);
 		packstr(job_desc_ptr->tres_per_socket, buffer);
 		packstr(job_desc_ptr->tres_per_task, buffer);
+#ifdef SLURM_SIMULATOR
+		pack32(job_desc_ptr->duration, buffer);
+#endif
 	} else if (protocol_version >= SLURM_18_08_PROTOCOL_VERSION) {
 		packstr(job_desc_ptr->batch_features, buffer);
 		packstr(job_desc_ptr->cluster_features, buffer);
@@ -9177,6 +9180,9 @@ _unpack_job_desc_msg(job_desc_msg_t ** job_desc_buffer_ptr, Buf buffer,
 				       &uint32_tmp, buffer);
 		safe_unpackstr_xmalloc(&job_desc_ptr->tres_per_task,
 				       &uint32_tmp, buffer);
+#ifdef SLURM_SIMULATOR
+		safe_unpack32(&job_desc_ptr->duration, buffer);
+#endif
 	} else if (protocol_version >= SLURM_18_08_PROTOCOL_VERSION) {
 		job_desc_ptr = xmalloc(sizeof(job_desc_msg_t));
 		*job_desc_buffer_ptr = job_desc_ptr;
@@ -12453,6 +12459,9 @@ _pack_batch_job_launch_msg(batch_job_launch_msg_t * msg, Buf buffer,
 		pack32(msg->profile, buffer);
 		packstr(msg->tres_bind, buffer);
 		packstr(msg->tres_freq, buffer);
+#ifdef SLURM_SIMULATOR
+		pack32(msg->duration, buffer);
+#endif
 	} else if (protocol_version >= SLURM_MIN_PROTOCOL_VERSION) {
 		pack32(msg->job_id, buffer);
 		pack32(msg->step_id, buffer);
@@ -12636,6 +12645,9 @@ _unpack_batch_job_launch_msg(batch_job_launch_msg_t ** msg, Buf buffer,
 				       buffer);
 		safe_unpackstr_xmalloc(&launch_msg_ptr->tres_freq, &uint32_tmp,
 				       buffer);
+#ifdef SLURM_SIMULATOR
+		safe_unpack32(&launch_msg_ptr->duration, buffer);
+#endif
 	} else if (protocol_version >= SLURM_MIN_PROTOCOL_VERSION) {
 		safe_unpack32(&launch_msg_ptr->job_id, buffer);
 		safe_unpack32(&launch_msg_ptr->step_id, buffer);
