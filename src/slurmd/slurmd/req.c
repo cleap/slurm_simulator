@@ -264,6 +264,8 @@ static List job_limits_list = NULL;
 static bool job_limits_loaded = false;
 
 static int next_fini_job_inx = 0;
+
+static pthread_mutex_t event_info_list_mutex = PTHREAD_MUTEX_INITIALIZER;
 extern pthread_mutex_t simulator_mutex;
 
 /* NUM_PARALLEL_SUSP_JOBS controls the number of jobs that can be suspended or
@@ -517,16 +519,14 @@ int simulator_add_future_event(batch_job_launch_msg_t *req){
 	simulator_event_t  *new_event;
 	simulator_event_info_t *temp_ptr = head_simulator_event_info;
 	time_t now;
+	int comp, ncomp;
 
 	pthread_mutex_lock(&simulator_mutex);
 	now = time(NULL);
 
-	new_event = (simulator_event_t *)malloc(sizeof(simulator_event_t));
-	if(!new_event){
-		error("SIMULATOR: malloc fails for new_event\n");
-		pthread_mutex_unlock(&simulator_mutex);
-		return -1;
-	}
+	ncomp = req->pack_components == 0 ? 1 : req->pack_components;
+	if (ncomp)
+		debug3("Received job with %d components", ncomp);
 
 	/* Checking job_id as expected */
 	while(temp_ptr){
@@ -539,39 +539,72 @@ int simulator_add_future_event(batch_job_launch_msg_t *req){
 		pthread_mutex_unlock(&simulator_mutex);
 		return -1;
 	}
-	new_event->job_id = req->job_id;
-	new_event->type = REQUEST_COMPLETE_BATCH_SCRIPT;
-	new_event->when = now + temp_ptr->duration;
-	new_event->nodelist = strdup(req->nodes);
-	new_event->next = NULL;
-
-	total_sim_events++;
-	if(!head_simulator_event){
-		info("SIM: Adding new event for job %d when list is empty for future time %ld!", new_event->job_id, new_event->when);
-		head_simulator_event = new_event;
-	}else{
-		volatile simulator_event_t *node_temp = head_simulator_event;
-		info("SIM: Adding new event for job %d in the event listi for future time %ld", new_event->job_id, new_event->when);
-
-		if(head_simulator_event->when > new_event->when){
-			new_event->next = head_simulator_event;
-			head_simulator_event = new_event;
-			pthread_mutex_unlock(&simulator_mutex);
-			return 0;
+	int max_duration = 0;
+	simulator_event_info_t *temp_ptr2 = temp_ptr;
+	for (comp = 0; comp < ncomp; comp++) {
+		if (!temp_ptr2 && ncomp > 1) {
+			info("SIM: wrong number of jobs components");
+			return -1;
 		}
-
-		while((node_temp->next) && (node_temp->next->when < new_event->when))
-			node_temp = node_temp->next;
-
-		if(node_temp->next){
-			new_event->next = node_temp->next;
-			node_temp->next = new_event;
-			pthread_mutex_unlock(&simulator_mutex);
-			return 0;
-		}
-		node_temp->next = new_event;
+		if (temp_ptr2->job_id != (temp_ptr->job_id+comp))
+			error("Wrong job id: %d", temp_ptr2->job_id);
+		if ((temp_ptr2)->duration > max_duration)
+			max_duration = temp_ptr2->duration;
+		temp_ptr2 = temp_ptr2->prev; //new jobs at the head of the queue
 	}
+	temp_ptr2 = temp_ptr;
+	for (comp = 0; comp < ncomp; comp++) {
+		new_event = (simulator_event_t *)xmalloc(sizeof(simulator_event_t));
+		if(!new_event){
+			error("SIMULATOR: xmalloc fails for new_event\n");
+			pthread_mutex_unlock(&simulator_mutex);
+			return -1;
+		}
+		new_event->job_id = req->job_id+comp;
+		if (temp_ptr2->duration == max_duration) {//only the last hetjob component unlocks this message
+			new_event->type = REQUEST_COMPLETE_BATCH_SCRIPT;
+			new_event->job_id = req->job_id; //apparently only works when the fist component sends it
+		}
+		/* TODO: do nothing or send slurmctld a message?
+		 * sending REQUEST_COMPLETE_BATCH_SCRIPT from component jobid might work
+		 * although I didn't see this kind of behavior running Slurm, but I've seen
+		 * a REQUEST_STEP_COMPLETE msg
+		 */
+		else new_event->type = REQUEST_STEP_COMPLETE;
+		new_event->event_info_ptr = temp_ptr2;
+		new_event->when = now + temp_ptr2->duration;
+		new_event->nodelist = strdup(req->nodes); //TODO: this is the whole jobpack nodes list?
+		new_event->pack_components = ncomp;
+		new_event->next = NULL;
 
+		total_sim_events++;
+		if (!head_simulator_event){
+			info("SIM: Adding new event for job %d when list is empty for future time %ld!", new_event->job_id, new_event->when);
+			head_simulator_event = new_event;
+		}
+		else {
+			volatile simulator_event_t *node_temp = head_simulator_event;
+			info("SIM: Adding new event for job %d in the event list for future time %ld", new_event->job_id, new_event->when);
+ 
+			if (head_simulator_event->when > new_event->when){
+				new_event->next = head_simulator_event;
+				head_simulator_event = new_event;
+				temp_ptr2 = temp_ptr2->prev;
+				continue;
+			}
+			while((node_temp->next) && (node_temp->next->when < new_event->when))
+				node_temp = node_temp->next;
+
+			if (node_temp->next) {
+				new_event->next = node_temp->next;
+				node_temp->next = new_event;
+				temp_ptr2 = temp_ptr2->prev;
+				continue;
+			}
+			node_temp->next = new_event;
+		}
+		temp_ptr2 = temp_ptr2->prev;
+	}
 	pthread_mutex_unlock(&simulator_mutex);
 	return 0;
 }
@@ -3279,7 +3312,12 @@ _rpc_sim_job(slurm_msg_t *msg)
 		new->job_id = sim_job->job_id;
 		new->duration = sim_job->duration;
 
+		pthread_mutex_lock(&event_info_list_mutex);
 		new->next = head_simulator_event_info;
+		if (new->next)
+			new->next->prev = new;
+		pthread_mutex_unlock(&event_info_list_mutex);
+		new->prev = NULL;
 		head_simulator_event_info = new;
 
 		last_job_id = sim_job->job_id;
@@ -3628,7 +3666,7 @@ simulator_rpc_terminate_job(slurm_msg_t *rec_msg)
 	char *node_name;
 	int             rc     = SLURM_SUCCESS;
 	kill_job_msg_t *req_kill    = rec_msg->data;
-	volatile simulator_event_t *temp, *event_sim, *prev;
+	volatile simulator_event_t *temp, *event_sim, *prev = NULL;
 
 	/* First sending an OK to the controller */
 
@@ -3642,19 +3680,19 @@ simulator_rpc_terminate_job(slurm_msg_t *rec_msg)
 
 	event_sim = head_sim_completed_jobs;
 
-	if((head_sim_completed_jobs) && (head_sim_completed_jobs->job_id == req_kill->job_id)){
+	if((head_sim_completed_jobs) && (head_sim_completed_jobs->event_info_ptr->job_id == req_kill->job_id)){
 		head_sim_completed_jobs = head_sim_completed_jobs->next;
 	}else{
 
 		temp = head_sim_completed_jobs;
 		if(!temp){
-			info("SIM: Error, no event found for completed job %d T1\n", req_kill->job_id);
+			info("SIM: Error, no event found for completed job %d\n", req_kill->job_id);
 			pthread_mutex_unlock(&simulator_mutex);
 			return;
 		}
 
 		while (temp) {
-			if (temp->job_id==req_kill->job_id) {
+			if (temp->event_info_ptr->job_id==req_kill->job_id) {
 				break;
 			}
 			prev=temp;
@@ -3662,7 +3700,8 @@ simulator_rpc_terminate_job(slurm_msg_t *rec_msg)
 		}
 		if (temp) {
 			event_sim=temp;
-			prev->next=temp->next;
+			if (prev)
+				prev->next=temp->next;
 		} else {
 			info("SIM: Error, no event found for completed job %d T2\n", req_kill->job_id);
 			pthread_mutex_unlock(&simulator_mutex);

@@ -1114,6 +1114,7 @@ typedef struct batch_job_launch_msg {
 	char *tres_freq;	/* frequency/power for TRES (e.g. GPUs) */
 #ifdef SLURM_SIMULATOR
 	uint32_t duration;
+	uint32_t pack_components;
 #endif
 } batch_job_launch_msg_t;
 

@@ -12461,6 +12461,7 @@ _pack_batch_job_launch_msg(batch_job_launch_msg_t * msg, Buf buffer,
 		packstr(msg->tres_freq, buffer);
 #ifdef SLURM_SIMULATOR
 		pack32(msg->duration, buffer);
+		pack32(msg->pack_components, buffer);
 #endif
 	} else if (protocol_version >= SLURM_MIN_PROTOCOL_VERSION) {
 		pack32(msg->job_id, buffer);
@@ -12647,6 +12648,7 @@ _unpack_batch_job_launch_msg(batch_job_launch_msg_t ** msg, Buf buffer,
 				       buffer);
 #ifdef SLURM_SIMULATOR
 		safe_unpack32(&launch_msg_ptr->duration, buffer);
+		safe_unpack32(&launch_msg_ptr->pack_components, buffer);
 #endif
 	} else if (protocol_version >= SLURM_MIN_PROTOCOL_VERSION) {
 		safe_unpack32(&launch_msg_ptr->job_id, buffer);

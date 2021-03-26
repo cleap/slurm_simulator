@@ -693,28 +693,38 @@ _simulator_helper(void *arg)
 
 		while((head_simulator_event) && (now >= head_simulator_event->when)){
 			volatile simulator_event_t *aux;
-			int event_jid;
+			int event_jid, event_type, ncomponents;
 			event_jid = head_simulator_event->job_id;
+			event_type = head_simulator_event->type;
+			ncomponents = head_simulator_event->pack_components;
 			aux = head_simulator_event;
 			head_simulator_event = head_simulator_event->next;
 			aux->next = head_sim_completed_jobs;
 			head_sim_completed_jobs = aux;
 			total_sim_events--;
-			info("SIM: Sending JOB_COMPLETE_BATCH_SCRIPT for job %d", event_jid);
-			pthread_mutex_unlock(&simulator_mutex);
-			
-			if(_send_complete_batch_script_msg(event_jid, SLURM_SUCCESS, 0) == SLURM_SUCCESS) { 
-				pthread_mutex_lock(&simulator_mutex);
-				pthread_mutex_lock(&epilogs_mutex); //we are in the same thread here
-				waiting_epilog_msgs++;
-				pthread_mutex_unlock(&epilogs_mutex);
-				info("SIM: JOB_COMPLETE_BATCH_SCRIPT for job %d SENT", event_jid);
-				jobs_ended++;
-			} else {
-				error("SIM: JOB_COMPLETE_BATCH_SCRIPT for job %d NOT SENT", event_jid);
-				_decrement_thd_count();
-				return NULL;
+//			if (event_type == REQUEST_STEP_COMPLETE) {
+//				info("SIM: Sending REQUEST_STEP_COMPLETE for job %d", event_jid);
+//			if (_send_simulated_step_complete_msg(event_jid, SLURM_SUCCESS) != SLURM_ERROR) {
+//				error("SIM: Error sending REQUEST_STEP_COMPLETE");
+//				}
+//			}
+//			else
+			if (event_type == REQUEST_COMPLETE_BATCH_SCRIPT) {
+				info("SIM: Sending REQUEST_COMPLETE_BATCH_SCRIPT for job %d", event_jid);
+				if (_send_complete_batch_script_msg(event_jid, SLURM_SUCCESS, 0) == SLURM_SUCCESS) { 
+					pthread_mutex_lock(&epilogs_mutex); //we are in the same thread here
+					waiting_epilog_msgs += ncomponents;
+					debug("Now waiting for %d epilogs", waiting_epilog_msgs);
+					pthread_mutex_unlock(&epilogs_mutex);
+					info("SIM: REQUEST_COMPLETE_BATCH_SCRIPT for job %d SENT", event_jid);
+					jobs_ended++;
+				} else {
+					error("SIM: REQUEST_COMPLETE_BATCH_SCRIPT for job %d NOT SENT", event_jid);
+					_decrement_thd_count();
+					return NULL;
+				}
 			}
+			else debug("SIM: error: message type not recognized");
 		}
 		pthread_mutex_unlock(&simulator_mutex);
 		last = now;
