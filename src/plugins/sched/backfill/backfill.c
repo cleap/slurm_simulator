@@ -1682,6 +1682,7 @@ static int _attempt_backfill(void)
 	time_t qos_blocked_until = 0, qos_part_blocked_until = 0;
 	time_t tmp_preempt_start_time = 0;
 	bool tmp_preempt_in_progress = false;
+	int last_start_time = 0;
 	/* QOS Read lock */
 	assoc_mgr_lock_t qos_read_lock =
 		{ NO_LOCK, NO_LOCK, READ_LOCK, NO_LOCK,
@@ -2729,7 +2730,13 @@ skip_start:
 				     job_ptr, start_time, end_reserve,
 				     boot_time, later_start);
 			}
-			goto TRY_LATER;
+			if (last_start_time != start_time) {
+				last_start_time = start_time;
+				goto TRY_LATER;
+			}
+			last_start_time = 0;
+			continue;
+
 		}
 //#endif
 
