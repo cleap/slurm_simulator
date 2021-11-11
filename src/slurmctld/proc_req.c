@@ -2522,9 +2522,13 @@ static void _slurm_rpc_complete_batch_script(slurm_msg_t *msg,
 
 	/* init */
 	START_TIMER;
+
+#ifdef SLURM_SIMULATOR
 	pthread_mutex_lock(&lock_finishing_jobs);
 	total_finished_jobs+=1;
 	pthread_mutex_unlock(&lock_finishing_jobs);
+#endif
+
 	debug2("Processing RPC: REQUEST_COMPLETE_BATCH_SCRIPT from "
 	       "uid=%u JobId=%u",
 	       uid, comp_msg->job_id);

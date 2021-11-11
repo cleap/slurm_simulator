@@ -190,7 +190,6 @@ static void _rpc_timelimit(slurm_msg_t *);
 static void _rpc_reattach_tasks(slurm_msg_t *);
 static void _rpc_suspend_job(slurm_msg_t *msg);
 static void _rpc_terminate_job(slurm_msg_t *);
-static void _rpc_simulator_terminate_job(slurm_msg_t *);
 static int _rpc_sim_job(slurm_msg_t *msg);
 static void _rpc_update_time(slurm_msg_t *);
 static void _rpc_simulator_batch_job(slurm_msg_t *);
@@ -529,12 +528,12 @@ int simulator_add_future_event(batch_job_launch_msg_t *req){
 		debug3("Received job with %d components", ncomp);
 
 	/* Checking job_id as expected */
-	while(temp_ptr){
+	while (temp_ptr){
 		if(temp_ptr->job_id == req->job_id)
 			break;
 		temp_ptr = temp_ptr->next;
 	}
-	if(!temp_ptr){
+	if (!temp_ptr){
 		info("SIM: No job_id event matching this job_id %d\n", req->job_id);
 		pthread_mutex_unlock(&simulator_mutex);
 		return -1;
@@ -3303,7 +3302,7 @@ _rpc_sim_job(slurm_msg_t *msg)
 	info("SIM: Got info for jobid: %u with a duration of %u\n", sim_job->job_id, sim_job->duration);
 
 	if(sim_job->job_id != last_job_id){
-		new = (simulator_event_info_t *)calloc(1, sizeof(simulator_event_info_t));
+		new = (simulator_event_info_t *)xmalloc(sizeof(simulator_event_info_t));
 		if(!new){
 			info("SIM: _rpc_sim_job error in calloc\n");
 			return rc;
@@ -3732,7 +3731,7 @@ simulator_rpc_terminate_job(slurm_msg_t *rec_msg)
 	waiting_epilog_msgs--;
 	pthread_mutex_unlock(&epilogs_mutex);
 	hostlist_destroy(hl);
-	free((void*)event_sim);
+	xfree(event_sim);
 }
 
 static void
