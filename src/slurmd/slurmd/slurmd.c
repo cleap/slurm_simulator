@@ -621,11 +621,56 @@ _send_complete_batch_script_msg(uint32_t jobid, int err, int status)
 		return SLURM_ERROR;
 	}
 
-	if ((rc == ESLURM_ALREADY_DONE) || (rc == ESLURM_INVALID_JOB_ID))
-		rc = SLURM_SUCCESS;
 	if (rc)
 		slurm_seterrno_ret(rc);
-	return SLURM_SUCCESS;
+	return rc;
+}
+
+int _send_simulated_step_complete_msg(int event_jid, int err)
+{
+	step_complete_msg_t msg;
+	slurm_msg_t     req;
+	int rc = -1;
+	int i;
+
+	memset(&msg, 0, sizeof(msg));
+	msg.job_id = event_jid;
+	msg.job_step_id = 0;
+	msg.range_first  = 0;
+	msg.range_last   = 0;
+	msg.step_rc      = err;
+	msg.jobacct      = jobacctinfo_create(NULL);
+
+	slurm_msg_t_init(&req);
+	req.msg_type = REQUEST_STEP_COMPLETE;
+	req.data = &msg;
+
+	info("SIM: sending REQUEST_STEP_COMPLETE");
+
+	/* Note: these log messages don't go to slurmd.log from here */
+	for (i=0; i<=5; i++) {
+		struct timespec waiting;
+
+		if (slurm_send_recv_controller_rc_msg(&req, &rc, working_cluster_rec) == 0)
+			break;
+		info("SIM: Retrying step complete RPC");
+		waiting.tv_sec = 0;
+		waiting.tv_nsec = 10000000;
+		//usleep(10000);
+		nanosleep(&waiting, 0);
+	}
+	if (i > 5) {
+		sleep(10);
+		error("SIM: Unable to send message helper cycle complete message: %m");
+		return SLURM_ERROR;
+	}
+	debug("Returned rc = %d", rc);
+	if ((rc == ESLURM_ALREADY_DONE) || (rc == ESLURM_INVALID_JOB_ID))
+        rc = SLURM_SUCCESS;
+	if (rc)
+        slurm_seterrno_ret(rc);
+
+	return rc;
 }
 
 static int
