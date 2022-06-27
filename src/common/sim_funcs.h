@@ -25,7 +25,7 @@
 #include <execinfo.h>
 #include <sys/syscall.h>
 
-int (*real_gettimeofday)(struct timeval *,struct timezone *);
+int (*real_gettimeofday)(struct timeval *,void *);
 int attaching_shared_memory();
 void get_semaphores_names(char *sim_sem, char *slurm_sem);
 #endif

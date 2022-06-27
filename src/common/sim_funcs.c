@@ -17,7 +17,7 @@ typedef struct sim_user_info{
 }sim_user_info_t;
 
 /* Function Pointers */
-int (*real_gettimeofday)(struct timeval *,struct timezone *) = NULL;
+int (*real_gettimeofday)(struct timeval *,void *) = NULL;
 time_t (*real_time)(time_t *)                                = NULL;
 
 /* Global Variables */
@@ -58,7 +58,7 @@ time_t time(time_t *t) {
 	}
 };
 
-int gettimeofday(struct timeval *tv, struct timezone *tz){
+int gettimeofday(struct timeval *tv, void *tz){
 	init_shared_memory_if_needed();
 
 	if (!(current_sim) && !real_gettimeofday) init_funcs();
